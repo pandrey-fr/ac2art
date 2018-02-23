@@ -7,9 +7,9 @@ import inspect
 import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
-from neural_networks.components.filtering import lowpass_filter
+from neural_networks.components.filters import LowpassFilter
+from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
-from neural_networks.layers import DenseLayer
 from neural_networks.utils import (
     check_positive_int, check_type_validity, raise_type_error, onetimemethod
 )
@@ -112,15 +112,16 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         self._layers['readout_layer'] = DenseLayer(
             self._top_layer.output, self.n_targets, 'identity', bias=False
         )
+        self._layers['readout_filter'] = LowpassFilter(
+            signal=self._layers['readout_layer'].output, cutoff=20,
+            learnable=False, sampling_rate=200, window=5
+        )
 
     @onetimemethod
     def _build_readouts(self):
         """Build wrappers on top of the network's readout layer."""
         self._readouts['raw_prediction'] = self._layers['readout_layer'].output
-        prediction = lowpass_filter(
-            signal=self._layers['readout_layer'].output, cutoff=20,
-            sampling_rate=200, window=5
-        )
+        prediction = self._layers['readout_filter'].output
         self._readouts.update(
             build_rmse_readouts(prediction, self._holders['targets'])
         )

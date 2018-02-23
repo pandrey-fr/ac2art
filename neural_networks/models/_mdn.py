@@ -6,8 +6,8 @@ import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
 from neural_networks.components.gaussian import gaussian_mixture_density
+from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
-from neural_networks.layers import DenseLayer
 from neural_networks.models import MultilayerPerceptron
 from neural_networks.tf_utils import index_tensor
 from neural_networks.utils import (

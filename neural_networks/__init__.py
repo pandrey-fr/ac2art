@@ -5,7 +5,6 @@
 from . import components
 from . import core
 from . import models
-from . import layers
 from . import tf_utils
 from . import utils
 

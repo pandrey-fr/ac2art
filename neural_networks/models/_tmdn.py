@@ -9,7 +9,6 @@ from neural_networks.components.mlpg import (
 )
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MixtureDensityNetwork
-from neural_networks.tf_utils import index_tensor
 from neural_networks.utils import check_positive_int, onetimemethod
 
 
@@ -101,15 +100,10 @@ class TrajectoryMDN(MixtureDensityNetwork):
         keep_prob  : probability to use for the dropout layers (default 1)
         fit        : output quantity used (str in {'likelihood', 'trajectory'})
         """
-        feed_dict = {
-            self._holders['input']: input_data,
-            self._holders['keep_prob']: keep_prob
-        }
-        if targets is not None:
-            feed_dict[self._holders['targets']] = targets
+        feed_dict = super()._get_feed_dict(input_data, targets, keep_prob)
         if fit == 'trajectory':
             weights = build_dynamic_weights_matrix(
-                len(input_data), self.delta_window
+                len(input_data), self.delta_window, complete=True
             )
             feed_dict[self._holders['_delta_weights']] = weights
         return feed_dict
