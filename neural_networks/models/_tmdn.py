@@ -5,7 +5,7 @@
 import tensorflow as tf
 
 from neural_networks.components.mlpg import (
-    build_dynamic_weights_matrix, run_mlpg_algorithm
+    build_dynamic_weights_matrix, generate_trajectory_from_gaussian_mixture
 )
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MixtureDensityNetwork
@@ -56,6 +56,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Use the basic API init instead of that of the direct parent.
         # pylint: disable=super-init-not-called, non-parent-init-called
+        self.n_parameters = None
         DeepNeuralNetwork.__init__(
             self, input_shape, n_targets, activation,
             n_components=n_components, layers_shape=layers_shape,
@@ -84,24 +85,11 @@ class TrajectoryMDN(MixtureDensityNetwork):
     @onetimemethod
     def _build_prediction_readout(self):
         """Build a trajectory prediction using the MLPG algorithm."""
-        # Select a time sequence of mixture components based on their priors.
-        indices = index_tensor(
-            tf.argmax(self._readouts['priors'], axis=1, output_type=tf.int32)
+        trajectory = generate_trajectory_from_gaussian_mixture(
+            self._readouts['priors'], self._readouts['means'],
+            self._readouts['std_deviations'], self._holders['_delta_weights']
         )
-        # Gather the means and standard deviations along the selected sequence.
-        means_sequence = tf.gather_nd(self._readouts['means'], indices)
-        stds_sequence = tf.gather_nd(self._readouts['std_deviations'], indices)
-        # Compute the matrix of static-to-dynamic features weights.
-        delta_weights = self._holders['_delta_weights']
-        weights = tf.concat([
-            tf.matrix_diag(tf.ones([n_obs])), delta_weights,
-            tf.matmul(delta_weights, delta_weights)
-        ], axis=0)
-        # Declare readout wrappers for the MLPG-selected trajectory.
-        self._readouts['prediction_static'] = static = (
-            run_mlpg_algorithm(means_sequence, stds_sequence, weights)
-        )
-        self._readouts['prediction'] = tf.matmul(weights, static)
+        self._readouts['prediction'] = trajectory
 
     def _get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'

@@ -52,6 +52,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Use the basic API init instead of that of the direct parent.
         # pylint: disable=super-init-not-called, non-parent-init-called
+        self.n_parameters = None
         DeepNeuralNetwork.__init__(
             self, input_shape, n_targets, activation,
             n_components=n_components, layers_shape=layers_shape,
@@ -64,7 +65,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         super()._validate_args()
         # Control n_components argument and compute n_components.
         check_positive_int(self.n_components, 'n_components')
-        self._init_arguments['n_parameters'] = (
+        self.n_parameters = (
             self.n_components * (2 + self.n_targets)
         )
 
