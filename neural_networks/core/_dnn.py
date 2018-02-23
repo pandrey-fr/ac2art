@@ -20,17 +20,19 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     *** document API and abstract methods ***
     """
 
-    def __init__(self, input_shape, activation, **kwargs):
+    def __init__(self, input_shape, n_targets, activation, **kwargs):
         """Initialize the neural network.
 
         input_shape : shape of the input data fed to the network, with
                       the number of samples as first component
                       (tuple, list, tensorflow.TensorShape)
+        n_targets   : number of real-valued targets to predict
         activation  : default activation function to use (or its name)
         """
         # Record and process initialization arguments.
         self._init_arguments = {
-            'input_shape': input_shape, 'activation': activation
+            'input_shape': input_shape, 'n_targets': n_targets
+            'activation': activation
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -138,12 +140,17 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         activation = self.activation
         if not (isinstance(activation, str) or inspect.isfunction(activation)):
             raise_type_error('activation', (str, 'function'), type(activation))
+        # Validate the model's number of targets.
+        check_positive_int(self.n_targets, 'n_targets')
 
     @abstractmethod
     @onetimemethod
     def _build_placeholders(self):
         """Build the network's placeholders."""
         self._holders['input'] = tf.placeholder(tf.float32, self.input_shape)
+        self._holders['targets'] = tf.placeholder(
+            tf.float32, [self.input_shape[0], self.n_targets]
+        )
         self._holders['keep_prob'] = tf.placeholder(tf.float32, ())
 
     @abstractmethod

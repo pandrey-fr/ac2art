@@ -34,7 +34,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                        SGD optimizer with 1e-3 learning rate)
         """
         super().__init__(
-            input_shape, activation, n_targets=n_targets,
+            input_shape, n_targets, activation,
             layers_shape=layers_shape, optimizer=optimizer
         )
 
@@ -65,10 +65,9 @@ class MultilayerPerceptron(DeepNeuralNetwork):
 
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
-        # Control input shape and activation function.
+        # Control input shape, number of targets and activation function.
         super()._validate_args()
         # Control class-specific arguments.
-        check_positive_int(self.n_targets, 'n_targets')
         check_type_validity(self.layers_shape, tuple, 'layers_shape')
         try:
             [check_positive_int(shape, '') for shape in self.layers_shape]
@@ -85,13 +84,6 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                 'optimizer', (type(None), dict, 'tensorflow.train.Optimizer'),
                 type(self.optimizer).__name__
             )
-
-    def _build_placeholders(self):
-        """Build the network's placeholders."""
-        super()._build_placeholders()  # 'input' and 'keep_prob' holders
-        self._holders['targets'] = tf.placeholder(
-            tf.float32, [self.input_shape[0], self.n_targets]
-        )
 
     @onetimemethod
     def _build_layers(self):

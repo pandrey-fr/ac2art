@@ -57,7 +57,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         # Use the basic API init instead of that of the direct parent.
         # pylint: disable=super-init-not-called, non-parent-init-called
         DeepNeuralNetwork.__init__(
-            self, input_shape, activation, n_targets=n_targets,
+            self, input_shape, n_targets, activation,
             n_components=n_components, layers_shape=layers_shape,
             optimizer=optimizer, delta_window=delta_window
         )
