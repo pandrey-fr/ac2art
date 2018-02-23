@@ -10,7 +10,8 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.utils import (
-    check_type_validity, instanciate, raise_type_error, onetimemethod
+    check_positive_int, check_type_validity, instanciate,
+    raise_type_error, onetimemethod
 )
 
 
@@ -31,7 +32,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """
         # Record and process initialization arguments.
         self._init_arguments = {
-            'input_shape': input_shape, 'n_targets': n_targets
+            'input_shape': input_shape, 'n_targets': n_targets,
             'activation': activation
         }
         self._init_arguments.update(kwargs)
@@ -143,7 +144,6 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         # Validate the model's number of targets.
         check_positive_int(self.n_targets, 'n_targets')
 
-    @abstractmethod
     @onetimemethod
     def _build_placeholders(self):
         """Build the network's placeholders."""
