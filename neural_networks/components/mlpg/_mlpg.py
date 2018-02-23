@@ -10,11 +10,14 @@ from neural_networks.tf_utils import index_tensor, tensor_length
 from neural_networks.utils import check_positive_int
 
 
-def build_dynamic_weights_matrix(size, window):
+def build_dynamic_weights_matrix(size, window, complete=False):
     """Return a numpy matrix to produce dynamic features out of static ones.
 
-    size   : size of the static features matrix (int)
-    window : (half) size of the time window to use (int)
+    size     : size of the static features matrix (int)
+    window   : (half) size of the time window to use (int)
+    complete : whether to return the full weights matrix producing
+               both static, delta and deltadelta features instead
+               of the sole delta-computing weights (bool, default False)
     """
     # Declare stuff.
     w_norm = 3 / (window * (window + 1) * (2 * window + 1))
@@ -35,6 +38,11 @@ def build_dynamic_weights_matrix(size, window):
             weights[time, time + 1:-1] = w_future[:size - window - time - 2]
         else:
             weights[time, time + 1:time + window + 1] = w_future
+    # Optionally build the full weights matrix.
+    if complete:
+        weights = np.concatenate(
+            [np.identity(size), weights, np.dot(weights, weights)]
+        )
     # Return the generated matrix of weights.
     return weights
 
@@ -56,6 +64,7 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     the static features, the first-order dynamic features and the second-
     order ones.
     """
+    # Long but explicit function name; pylint: disable=invalid-name
     # Test arguments' rank validity.
     tf.assert_rank(means, 2)
     tf.assert_rank(stds, 1)
@@ -101,6 +110,7 @@ def generate_trajectory_from_gaussian_mixture(
     the static features, the first-order dynamic features and the second-
     order ones.
     """
+    # Long but explicit function name; pylint: disable=invalid-name
     # Test arguments' rank validity.
     tf.assert_rank(priors, 2)
     tf.assert_rank(means, 3)
@@ -149,10 +159,9 @@ def generate_trajectory_from_gaussian_mixture(
             lambda: (n_steps, previous_traject, previous_dens, previous_ll)
         )
     # Choose an initial trajectory, using a random sequence of components.
-    n_obs = tensor_length(priors)
-    sequence = index_tensor(
-        tf.random_uniform([n_obs], 0, priors.shape[1], dtype=tf.int32)
-    )
+    sequence = index_tensor(tf.random_uniform(
+        [tensor_length(priors)], 0, priors.shape[1], dtype=tf.int32
+    ))
     init_trajectory, init_densities, init_ll = generate_trajectory(
         tf.gather_nd(means, sequence), tf.gather_nd(stds, sequence)
     )
