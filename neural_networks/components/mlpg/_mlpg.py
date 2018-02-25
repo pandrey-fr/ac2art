@@ -47,6 +47,30 @@ def build_dynamic_weights_matrix(size, window, complete=False):
     return weights
 
 
+def expand_tmdn_standard_deviations(stds, n_components, n_targets):
+    """Reshape the standard deviations of a trajectory mixture density network.
+
+    The TMDN produces three standard deviations per component, one
+    for the static features, one for the delta features and one for
+    the deltadelta features. This function duplicates and orders
+    these values so as to match the shape of the target data points.
+
+    stds         : standard deviations output by the TMDN
+    n_components : number of mixture components
+    n_targets    : number of target values (including delta and deltadelta)
+    """
+    expanded = tf.concat([
+        tf.concat([
+            tf.concat([
+                tf.expand_dims(stds[:, i, j], 1) for _ in range(n_targets // 3)
+            ], axis=1)
+            for j in range(3)
+        ], axis=1)
+        for i in range(n_components)
+    ], axis=1)
+    return tf.reshape(expanded, (-1, n_components, n_targets))
+
+
 def generate_trajectory_from_gaussian(means, stds, weights):
     """Generate a trajectory out of a time sequence of gaussian parameters.
 
@@ -74,7 +98,7 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     means = tf.concat([
         means[:, i * n_targets:(i + 1) * n_targets] for i in range(3)
     ], axis=0)
-    stds = tf.matrix_diag(tf.concat([stds for _ in range(3)], axis=0))
+    stds = tf.matrix_diag(stds)
     # Solve the system using cholesky decomposition of the left term matrix.
     weighted_stds = tf.matmul(tf.matrix_transpose(weights), stds)
     static_features = tf.cholesky_solve(
@@ -111,17 +135,20 @@ def generate_trajectory_from_gaussian_mixture(
     order ones.
     """
     # Long but explicit function name; pylint: disable=invalid-name
-    # Test arguments' rank validity.
+    # Test arguments validity.
     tf.assert_rank(priors, 2)
     tf.assert_rank(means, 3)
-    tf.assert_rank(stds, 2)
+    tf.assert_rank(stds, 3)
     tf.assert_rank(weights, 2)
-    # Check additional arguments.
     check_positive_int(n_steps, 'n_steps')
-    stddevs = tf.expand_dims(stds, 1)
+    # Reshape a copy of the standard deviations for density computations.
+    stddevs = expand_tmdn_standard_deviations(
+        stds, priors.shape[1], means.shape[2]
+    )
     # Set up the expectation step function.
     def generate_trajectory(means_sequence, stds_sequence):
         """Generate a trajectory and density-based metrics."""
+        stds_sequence = tf.reshape(tf.transpose(stds_sequence), (-1,))
         features = generate_trajectory_from_gaussian(
             means_sequence, stds_sequence, weights
         )
@@ -138,12 +165,15 @@ def generate_trajectory_from_gaussian_mixture(
         """Generate a parameters sequence using occupancy probabilities."""
         # Compute occupancy probabilities (i.e. posterior of components).
         norm = tf.expand_dims(tf.reduce_sum(densities, axis=1), 1)
-        occupancy = densities / norm
+        occupancy = tf.expand_dims(densities / norm, 2)
+        occupancy = tf.where(
+            tf.is_nan(occupancy), tf.zeros_like(occupancy), occupancy
+        )
         # Derive a weighted sequence of means and standard deviations.
-        means_sequence = tf.matmul(tf.expand_dims(occupancy, 1), means)[:, 0]
-        stds_sequence = tf.reduce_sum(occupancy * stds, axis=1)
-        # Return generated parameters sequences.
-        return means_sequence, stds_sequence
+        return (
+            tf.reduce_sum(occupancy * means, axis=1),
+            tf.reduce_sum(occupancy * stds, axis=1)
+        )
     # Set up a function running an E-M algorithm step.
     def run_step(index, previous_traject, previous_dens, previous_ll):
         """Run an iteration of the E-M algorithm for trajectory selection."""

@@ -90,12 +90,13 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         self._readouts['priors'] = (
             tf.nn.softmax(raw_parameters[:, :self.n_components])
         )
-        self._readouts['std_deviations'] = (
-            tf.exp(raw_parameters[:, self.n_components:2 * self.n_components])
-        )
+        n_means = self.n_components * self.n_targets
         self._readouts['means'] = tf.reshape(
-            raw_parameters[:, 2 * self.n_components:],
+            raw_parameters[:, self.n_components:self.n_components + n_means],
             (-1, self.n_components, self.n_targets)
+        )
+        self._readouts['std_deviations'] = (
+            tf.exp(raw_parameters[:, self.n_components + n_means:])
         )
 
     @onetimemethod

@@ -44,15 +44,19 @@ def gaussian_mixture_density(data, priors, means, stds):
 
     Return a 1-D Tensor (one row per mixture).
     """
+    # Check ranks validity
+    tf.assert_rank_in(data, [1, 2])
+    tf.assert_rank(priors, 2)
+    tf.assert_rank_in(means, [2, 3])
+    tf.assert_rank_in(stds, [2, 3])
     # Handle the univariate density case.
     if len(data.shape) == 1 or data.shape[1].value == 1:
         return tf.reduce_sum(
             priors * gaussian_density(data, means, stds), axis=1
         )
-    elif len(data.shape) > 2:
-        raise TypeError("'data' should be a 1-D or 2-D Tensor.")
     # Handle the multivariate density case.
     data = tf.expand_dims(data, 1)
-    stds = tf.expand_dims(stds, 2)
+    if len(stds.shape) == 2:
+        stds = tf.expand_dims(stds, 2)
     densities = tf.reduce_prod(gaussian_density(data, means, stds), axis=2)
     return tf.reduce_sum(priors * densities, axis=1)

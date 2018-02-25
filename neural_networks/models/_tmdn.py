@@ -5,7 +5,8 @@
 import tensorflow as tf
 
 from neural_networks.components.mlpg import (
-    build_dynamic_weights_matrix, generate_trajectory_from_gaussian_mixture
+    build_dynamic_weights_matrix, expand_tmdn_standard_deviations,
+    generate_trajectory_from_gaussian_mixture
 )
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MixtureDensityNetwork
@@ -73,6 +74,8 @@ class TrajectoryMDN(MixtureDensityNetwork):
                 + "first and second order dynamic features count."
             )
         check_positive_int(self.delta_window, 'delta_window')
+        # Override the parent class's number of parameters.
+        self.n_parameters = self.n_components * (4 + self.n_targets)
 
     def _build_placeholders(self):
         """Build the instance's placeholders."""
@@ -82,11 +85,25 @@ class TrajectoryMDN(MixtureDensityNetwork):
         )
 
     @onetimemethod
+    def _build_parameters_readouts(self):
+        """Build wrappers reading the produced density mixture parameters."""
+        super()._build_parameters_readouts()
+        stds = tf.reshape(
+            self._readouts['std_deviations'], (-1, self.n_components, 3)
+        )
+        self._readouts['std_deviations_raw'] = stds
+        self._readouts['std_deviations'] = expand_tmdn_standard_deviations(
+            stds, self.n_components, self.n_targets
+        )
+
+    @onetimemethod
     def _build_prediction_readout(self):
         """Build a trajectory prediction using the MLPG algorithm."""
         trajectory = generate_trajectory_from_gaussian_mixture(
-            self._readouts['priors'], self._readouts['means'],
-            self._readouts['std_deviations'], self._holders['_delta_weights']
+            self._readouts['priors'],
+            self._readouts['means'],
+            self._readouts['std_deviations_raw'],
+            self._holders['_delta_weights']
         )
         self._readouts['prediction'] = trajectory
 
