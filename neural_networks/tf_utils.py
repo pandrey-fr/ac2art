@@ -77,8 +77,8 @@ def log_base(tensor, base):
 def sinc(tensor):
     """Compute the normalized sinc of a tensorflow Tensor."""
     normalized = np.pi * tensor
-    result = tf.sin(normalized) / normalized
-    return tf.where(tf.is_nan(result), tf.ones_like(result), result)
+    is_zero = tf.cast(tf.equal(tensor, 0), tf.float32)
+    return is_zero + tf.sin(normalized) / (normalized + 1e-30)
 
 
 def tensor_length(tensor):
