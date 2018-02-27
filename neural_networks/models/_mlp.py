@@ -19,23 +19,40 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     """Class implementing the multilayer perceptron for regression."""
 
     def __init__(
-            self, input_shape, n_targets, layers_shape,
-            activation='relu', optimizer=None
+            self, input_shape, n_targets, layers_shape, norm_params,
+            activation='relu', filter_kwargs=None, optimizer=None
         ):
         """Instanciate a multilayer perceptron for regression tasks.
 
-        input_shape  : shape of the input data fed to the network,
-                       with the number of samples as first component
-        n_targets    : number of real-valued targets to predict
-        layers_shape : a tuple of int defining the hidden layers' sizes
-        activation   : either an activation function or its name
-                       (default 'relu', i.e. tensorflow.nn.relu)
-        optimizer    : tensorflow.train.Optimizer instance (by default,
-                       SGD optimizer with 1e-3 learning rate)
+        input_shape   : shape of the input data fed to the network,
+                        with the number of samples as first component
+        n_targets     : number of real-valued targets to predict
+        layers_shape  : a tuple of int defining the hidden layers' sizes
+        norm_params   : optional normalization parameters of the targets
+                        (np.ndarray)
+        activation    : either an activation function or its name
+                        (default 'relu', i.e. tensorflow.nn.relu)
+        filter_kwargs : dict of keyword arguments setting up a final
+                        low-pass filter (by default, learnable filter
+                        initialized at 20 Hz, with a 200 hz sampling rate)
+        optimizer     : tensorflow.train.Optimizer instance (by default,
+                        SGD optimizer with 1e-3 learning rate)
         """
+        # Arguments serve modularity; pylint: disable=too-many-args
+        # Control filter kwargs argument.
+        filter_params = {
+            'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
+        }
+        if isinstance(filter_kwargs, dict):
+            filter_params.update(filter_kwargs)
+        elif filter_kwargs is not None:
+            raise_type_error(
+                'filter_kwargs', (dict, type(None)), type(filter_kwargs)
+            )
         super().__init__(
-            input_shape, n_targets, activation,
-            layers_shape=layers_shape, optimizer=optimizer
+            input_shape, n_targets, activation, norm_params,
+            layers_shape=layers_shape, optimizer=optimizer,
+            filter_kwargs=filter_params
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -65,9 +82,9 @@ class MultilayerPerceptron(DeepNeuralNetwork):
 
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
-        # Control input shape, number of targets and activation function.
+        # Control arguments common to any DeepNeuralNetwork subclass.
         super()._validate_args()
-        # Control class-specific arguments.
+        # Control layers shape argument.
         check_type_validity(self.layers_shape, tuple, 'layers_shape')
         try:
             [check_positive_int(shape, '') for shape in self.layers_shape]
@@ -75,6 +92,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
             raise TypeError(
                 "'layers_shape' must contain positive integers only."
             )
+        # Control optimizer argument.
         if self.optimizer is None:
             self._init_arguments['optimizer'] = (
                 tf.train.GradientDescentOptimizer(1e-3)
@@ -110,11 +128,10 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     def _build_readout_layer(self):
         """Build the readout layer of the multilayer perceptron."""
         self._layers['readout_layer'] = DenseLayer(
-            self._top_layer.output, self.n_targets, 'identity', bias=False
+            self._top_layer.output, self.n_targets, 'identity'
         )
         self._layers['readout_filter'] = LowpassFilter(
-            signal=self._layers['readout_layer'].output, cutoff=20,
-            learnable=False, sampling_rate=200, window=5
+            signal=self._layers['readout_layer'].output, **self.filter_kwargs
         )
 
     @onetimemethod
@@ -122,6 +139,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """Build wrappers on top of the network's readout layer."""
         self._readouts['raw_prediction'] = self._layers['readout_layer'].output
         prediction = self._layers['readout_filter'].output
+        if self.norm_params is not None:
+            prediction *= self.norm_params
         self._readouts.update(
             build_rmse_readouts(prediction, self._holders['targets'])
         )

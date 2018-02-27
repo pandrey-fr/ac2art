@@ -37,7 +37,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
 
     def __init__(
             self, input_shape, n_targets, n_components, layers_shape,
-            activation='relu', optimizer=None, delta_window=5
+            norm_params, activation='relu', optimizer=None, delta_window=5
         ):
         """Instanciate the trajectory mixture density network.
 
@@ -46,6 +46,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
                        comprising delta and deltadelta features.
         n_components : number of mixture components to model
         layers_shape : a tuple of int defining the hidden layers' sizes
+        norm_params  : optional numpy array of targets normalization parameters
         activation   : either an activation function or its short name
                        (default 'relu', i.e. tensorflow.nn.relu)
         optimizer    : tensorflow.train.Optimizer instance (by default,
@@ -58,7 +59,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         # pylint: disable=super-init-not-called, non-parent-init-called
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, activation,
+            self, input_shape, n_targets, activation, norm_params,
             n_components=n_components, layers_shape=layers_shape,
             optimizer=optimizer, delta_window=delta_window
         )

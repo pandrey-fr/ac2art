@@ -23,7 +23,9 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     *** document API and abstract methods ***
     """
 
-    def __init__(self, input_shape, n_targets, activation, **kwargs):
+    def __init__(
+            self, input_shape, n_targets, activation, norm_params=None, **kwargs
+        ):
         """Initialize the neural network.
 
         input_shape : shape of the input data fed to the network, with
@@ -31,11 +33,13 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                       (tuple, list, tensorflow.TensorShape)
         n_targets   : number of real-valued targets to predict
         activation  : default activation function to use (or its name)
+        norm_params : optional normalization parameters of the targets
+                      (np.ndarray)
         """
         # Record and process initialization arguments.
         self._init_arguments = {
             'input_shape': input_shape, 'n_targets': n_targets,
-            'activation': activation
+            'activation': activation, 'norm_params': norm_params
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -129,7 +133,6 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Return the layer on top of the network's architecture."""
         return self._layers[list(self._layers.keys())[-1]]
 
-    @abstractmethod
     @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
@@ -145,6 +148,16 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             raise_type_error('activation', (str, 'function'), type(activation))
         # Validate the model's number of targets.
         check_positive_int(self.n_targets, 'n_targets')
+        # Validate the model's normalization parameters.
+        norm_params = self.norm_params
+        check_type_validity(
+            norm_params, (np.ndarray, type(None)), 'norm_params'
+        )
+        if norm_params is not None and norm_params.shape != (self.n_targets,):
+            raise TypeError(
+                "Wrong 'norm_params' shape: %s instead of (%s,)"
+                % (norm_params.shape, self.n_targets)
+            )
 
     @onetimemethod
     def _build_placeholders(self):

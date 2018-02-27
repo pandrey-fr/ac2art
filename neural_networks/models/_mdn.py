@@ -35,7 +35,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
 
     def __init__(
             self, input_shape, n_targets, n_components, layers_shape,
-            activation='relu', optimizer=None
+            norm_params, activation='relu', optimizer=None
         ):
         """Instanciate the mixture density network.
 
@@ -44,6 +44,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         n_targets    : number of real-valued targets to predict
         n_components : number of mixture components to model
         layers_shape : a tuple of int defining the hidden layers' sizes
+        norm_params  : optional numpy array of targets normalization parameters
         activation   : either an activation function or its short name
                        (default 'relu', i.e. tensorflow.nn.relu)
         optimizer    : tensorflow.train.Optimizer instance (by default,
@@ -54,7 +55,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # pylint: disable=super-init-not-called, non-parent-init-called
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, activation,
+            self, input_shape, n_targets, activation, norm_params,
             n_components=n_components, layers_shape=layers_shape,
             optimizer=optimizer
         )
@@ -73,7 +74,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     def _build_readout_layer(self):
         """Build the readout layer of the mixture density network."""
         self._layers['readout_layer'] = DenseLayer(
-            self._top_layer.output, self.n_parameters, 'identity', bias=False
+            self._top_layer.output, self.n_parameters, 'identity'
         )
 
     @onetimemethod
@@ -116,9 +117,11 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     def _build_trajectory_readouts(self):
         """Build wrappers selecting a trajectory and computing its RMSE."""
         self._build_prediction_readout()
-        readouts = build_rmse_readouts(
-            self._readouts['prediction'], self._holders['targets']
+        prediction = (
+            self._readouts['prediction'] if self.norm_params is None
+            else self._readouts['prediction'] * self.norm_params
         )
+        readouts = build_rmse_readouts(prediction, self._holders['targets'])
         self._readouts.update(readouts)
 
     @onetimemethod
