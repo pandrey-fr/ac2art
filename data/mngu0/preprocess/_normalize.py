@@ -4,88 +4,91 @@
 
 import os
 
+import numpy as np
 
 from data.utils import load_data_paths
-from neural_networks.components.mlpg import build_dynamic_weights_matrix
 
 
-_, NEW_FOLDER = load_data_paths('mngu0')
+_, FOLDER = load_data_paths('mngu0')
 
 
 def compute_files_moments(file_type, store=True):
-    """Compute file-wise and global means and standard deviations of a dataset.
+    """Compute file-wise and global mean, deviation and spread of a dataset.
 
-    The dataset must have been produced through pre-processing operations
+    The dataset must have been produced through extracting operations
     on the initial .ema and .wav files of the mngu0 dataset.
 
     file_type : type of data (str in {'ema', 'energy', 'lsf', 'lpc', 'mfcc'})
-    store     : whether to store the computed values to disk, each to
-                its own .npy file (bool, default True)
+    store     : whether to store the computed values to disk
+                (bool, default True)
 
     Return a dict containing the computed values.
+    Optionally write it to a dedicated .npy file.
     """
+    folder = os.path.join(FOLDER, file_type)
     # Compute file-wise means and standard deviations.
     dataset = np.array([
-        np.load(os.path.join(NEW_FOLDER, filename))
-        for filename in os.listdir(NEW_FOLDER)
+        np.load(os.path.join(folder, filename))
+        for filename in sorted(os.listdir(folder))
         if filename.endswith('_%s.npy' % file_type)
     ])
     moments = {
-        'file_means': np.array([np.mean(data) for data in dataset]),
-        'file_stds': np.array([np.std(data) for data in dataset])
+        'file_means': np.array([data.mean(axis=0) for data in dataset]),
+        'file_stds': np.array([data.std(axis=0) for data in dataset]),
+        'file_spread': np.array([
+            data.max(axis=0) - data.min(axis=0) for data in dataset
+        ])
     }
-    # Compute corpus-wide means and standard deviations.
+    # Compute corpus-wide means, standard deviations and spread.
     dataset = np.concatenate(dataset)
     moments.update({
-        'global_means': np.mean(dataset, axis=0),
-        'global_stds': np.std(dataset, axis=0)
+        'global_means': dataset.mean(axis=0),
+        'global_stds': dataset.std(axis=0),
+        'global_spread': dataset.max(axis=0) - dataset.min(axis=0)
     })
     # Optionally store the computed values to disk.
     if store:
-        dirname = os.path.join(NEW_FOLDER, file_type, 'norm_params/')
+        dirname = os.path.join(FOLDER, 'norm_params')
         if not os.path.isdir(dirname):
             os.makedirs(dirname)
-        for key, array in moments.items():
-            np.save(os.path.join(dirname, key + '.npy'), array)
+        np.save(os.path.join(dirname, 'norm_%s.npy' % file_type), moments)
     # Return the dict of computed values.
     return moments
 
 
-def normalize_data():
-    pass
+def normalize_files(file_type, norm_type='spread'):
+    """Normalize pre-extracted mngu0 data of a given type.
 
+    Normalization includes de-meaning (based on dataset-wide mean)
+    and division by a dataset-wide computed value, which may either
+    be four standard-deviations or the difference between the
+    extremum points (distribution spread).
 
-def _load_utterance(filename, dtype):
-    """Docstring."""
-    path = os.path.join(NEW_FOLDER, dtype, filename + '_%s.npy' % dtype)
-    return np.load(path)
+    Normalized utterances are stored as .npy files in a properly-named folder.
 
-
-def load_utterance(filename, audio='lsf', dynamic=False, window=None):
-    """Docstring."""
-    audio = _load_utterance(filename, audio)
-    ema = _load_utterance(filename, 'ema')
-    # TODO: normalization
-    if window is not None:
-        audio = build_context_windows(audio, window)
-    if dynamic:
-        ema = add_dynamic_features(ema)
-    return audio, ema
-
-
-def add_dynamic_features(static_features, window=5):
-    """Docstring."""
-    weights = build_dynamic_weights_matrix(len(static_features), window)
-    delta = np.dot(weights, static_features)
-    deltadelta = np.dot(weights, delta)
-    return np.concatenate([static_features, delta, deltadelta], axis=1)
-
-
-def build_context_windows(audio_frames, window=5):
-    """Docstring."""
-    padding = np.zeros((window, audio_frames.shape[1]))
-    padded = np.concatenate([padding, audio_frames, padding])
-    full_window = 1 + 2 * window
-    return np.concatenate(
-        [padded[i:i + len(audio_frames)] for i in range(full_window)], axis=1
-    )
+    file_type : one in {'ema', 'energy', 'lpc', 'lsf', 'mfcc'}
+    norm_type : normalization divisor to use ('spread' or 'stds')
+    """
+    # Gather files list.
+    input_folder = os.path.join(FOLDER, file_type)
+    files = sorted([
+        filename for filename in os.listdir(input_folder)
+        if filename.endswith('_%s.npy' % file_type)
+    ])
+    # Gather files' moments. Compute them if needed.
+    path = os.path.join(FOLDER, 'norm_params', 'norm_%s.npy' % file_type)
+    if os.path.isfile(path):
+        moments = np.load(path).tolist()
+    else:
+        moments = compute_files_moments(file_type, store=True)
+    means = moments['global_means']
+    norm = moments['global_%s' % norm_type] * (4 if norm_type == 'stds' else 1)
+    # Build the output directory, if needed.
+    output_folder = os.path.join(FOLDER, file_type + '_norm_' + norm_type)
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+    # Iteratively normalize the utterances.
+    for filename in files:
+        data = np.load(os.path.join(input_folder, filename))
+        data = (data - means) / norm
+        np.save(os.path.join(output_folder, filename), data)

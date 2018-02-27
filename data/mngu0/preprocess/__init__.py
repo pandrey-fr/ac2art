@@ -5,3 +5,4 @@
 from ._extract import (
     adjust_filesets, extract_all_utterances, extract_utterance_data
 )
+from ._normalize import compute_files_moments, normalize_files
