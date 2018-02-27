@@ -37,9 +37,13 @@ class LowpassFilter(SignalFilter):
     def _build_filter(self, sampling_rate, window):
         """Build the low-pass filter, based on a Hamming window."""
         # Explicit class-specific arguments, pylint: disable=arguments-differ
-        nyq = tf.cast(2 * self.cutoff / sampling_rate, tf.float32)
-        nyq = tf.expand_dims(nyq, -1)
-        filt_supp = tf.range(- window, window + 1, dtype=tf.float32)
+        # Turn parameters into tensors.
+        sampling_rate = tf.constant(float(sampling_rate))
+        window = tf.constant(window)
+        # Compute the ideal filter.
+        nyq = tf.expand_dims(2 * self.cutoff / sampling_rate, -1)
+        filt_supp = tf.cast(tf.range(- window, window + 1), tf.float32)
         ideal = nyq * sinc(nyq * filt_supp)
+        # Generate a Hamming window and return the low-pass filter.
         hamming = tf.contrib.signal.hamming_window(2 * window + 1)
         self.filter = hamming * ideal

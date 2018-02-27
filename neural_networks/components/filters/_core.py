@@ -53,7 +53,7 @@ class SignalFilter(metaclass=ABCMeta):
 
         signal    : signal to filter (1-D or 2-D tensorflow.Tensor)
         cutoff    : cutoff frequency (or frequencies) of the filter, in Hz
-                    (positive int or list, array or Tensor of such values)
+                    (positive float or list, array or Tensor of such values)
         learnable : whether the cutoff frequency may be adjusted, e.g. in
                     backpropagation procedures (bool, default True)
 
@@ -71,7 +71,7 @@ class SignalFilter(metaclass=ABCMeta):
         check_type_validity(learnable, bool, 'learnable')
         self.learnable = learnable
         if self.learnable:
-            self.cutoff = tf.Variable(cutoff)
+            self.cutoff = tf.Variable(self.cutoff)
         # Set up the actual filter.
         self.filter = None
         self._build_filter(**kwargs)
@@ -92,7 +92,9 @@ class SignalFilter(metaclass=ABCMeta):
             cutoff, (tf.Tensor, np.ndarray, list, int), 'cutoff'
         )
         if not isinstance(cutoff, tf.Tensor):
-            cutoff = tf.constant(cutoff)
+            cutoff = tf.constant(cutoff, dtype=tf.float32)
+        if cutoff.dtype != tf.float32:
+            cutoff = tf.cast(cutoff, tf.float32)
         # Check cutoff tensor rank.
         if not len(cutoff.shape):  # pylint: disable=len-as-condition
             cutoff = tf.expand_dims(cutoff, 0)
