@@ -2,49 +2,11 @@
 
 """Auxiliary functions implementing the MLPG algorithm."""
 
-import numpy as np
 import tensorflow as tf
 
 from neural_networks.components.gaussian import gaussian_density
 from neural_networks.tf_utils import index_tensor, tensor_length
 from neural_networks.utils import check_positive_int
-
-
-def build_dynamic_weights_matrix(size, window, complete=False):
-    """Return a numpy matrix to produce dynamic features out of static ones.
-
-    size     : size of the static features matrix (int)
-    window   : (half) size of the time window to use (int)
-    complete : whether to return the full weights matrix producing
-               both static, delta and deltadelta features instead
-               of the sole delta-computing weights (bool, default False)
-    """
-    # Declare stuff.
-    w_norm = 3 / (window * (window + 1) * (2 * window + 1))
-    w_future = np.array([i * w_norm for i in range(1, window + 1)])
-    w_past = -1 * w_future[::-1]
-    # Declare the weights matrix and fill it row by row.
-    weights = np.zeros((size, size))
-    for time in range(size):
-        # Fill weights for past observations.
-        if time < window:
-            weights[time, 0] = w_past[:window - time + 1].sum()
-            weights[time, 1:time] = w_past[window - time + 1:]
-        else:
-            weights[time, time - window:time] = w_past
-        # Fill weights for future observations.
-        if time >= size - window:
-            weights[time, -1] = w_future[size - window - time - 2:].sum()
-            weights[time, time + 1:-1] = w_future[:size - window - time - 2]
-        else:
-            weights[time, time + 1:time + window + 1] = w_future
-    # Optionally build the full weights matrix.
-    if complete:
-        weights = np.concatenate(
-            [np.identity(size), weights, np.dot(weights, weights)]
-        )
-    # Return the generated matrix of weights.
-    return weights
 
 
 def expand_tmdn_standard_deviations(stds, n_components, n_targets):
