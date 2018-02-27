@@ -83,16 +83,13 @@ class Wav:
         spectrogram = np.square(
             librosa.stft(self.signal, frames_size, hop_size, center=False)
         )
-        # Adjust the spectrogram to the mel scale.
-        mel_filter = librosa.filters.mel(
-            self.sampling_rate, self.frames.shape[1]
-        )
-        # Compute MFCC out of the mel spectrogram.
-        mels = librosa.power_to_db(np.dot(mel_filter, spectrogram))
-        mfcc = np.dot(librosa.filters.dct(n_coeff, len(mels)), mels).T
-        # Replace NaN values with zero and return the computed coefficients.
-        mfcc[np.isnan(mfcc)] = 0
-        return mfcc
+        # Adjust the spectrogram to the mel scale and compute its log powers.
+        melfilt = librosa.filters.mel(self.sampling_rate, frames_size, n_coeff)
+        melspectrogram = np.dot(melfilt, spectrogram)
+        # Compute the mel log powers. Return its discrete cosine transform.
+        mels = librosa.power_to_db(melspectrogram)
+        discrete_cosine_transform = librosa.filters.dct(n_coeff, len(mels))
+        return np.dot(discrete_cosine_transform, mels).T
 
     def get_rms_energy(self):
         """Return root mean squared energy for each audio frame."""
