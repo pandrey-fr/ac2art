@@ -83,7 +83,7 @@ class Wav:
         spectrogram = np.square(
             librosa.stft(self.signal, frames_size, hop_size, center=False)
         )
-        # Adjust the spectrogram to the mel scale and compute its log powers.
+        # Adjust the spectrogram to the mel scale.
         melfilt = librosa.filters.mel(self.sampling_rate, frames_size, n_coeff)
         melspectrogram = np.dot(melfilt, spectrogram)
         # Compute the mel log powers. Return its discrete cosine transform.
