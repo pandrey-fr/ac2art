@@ -38,7 +38,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         optimizer     : tensorflow.train.Optimizer instance (by default,
                         SGD optimizer with 1e-3 learning rate)
         """
-        # Arguments serve modularity; pylint: disable=too-many-args
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         # Control filter kwargs argument.
         filter_params = {
             'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
