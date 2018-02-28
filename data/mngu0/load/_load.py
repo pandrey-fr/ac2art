@@ -116,7 +116,7 @@ def load_ema(name, norm_type=None, dynamic_window=0):
                      articulatory features (default 0, returning static
                      features only)
     """
-    ema_folder = 'ema' if norm_type is None else 'ema_norm_' + norm_type
+    ema_folder = 'ema_norm_' + norm_type if norm_type else 'ema'
     ema = np.load(os.path.join(FOLDER, ema_folder, name + '_ema.npy'))
     if dynamic_window:
         ema = add_dynamic_features(ema, window=dynamic_window)
@@ -146,8 +146,8 @@ def load_utterance_list(set_name):
 
     set_name : name of the set, e.g. 'train', 'validation' or 'test'
     """
-    with open(os.path.join(FOLDER, 'filesets', set_name)) as file:
-        return [row.split('\n') for row in file]
+    with open(os.path.join(FOLDER, 'filesets', set_name + '.txt')) as file:
+        return [row.strip('\n') for row in file]
 
 
 def load_dataset(set_name, concatenate=False, **kwargs):
