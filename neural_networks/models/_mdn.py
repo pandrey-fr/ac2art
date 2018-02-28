@@ -5,7 +5,9 @@
 import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
-from neural_networks.components.gaussian import gaussian_mixture_density
+from neural_networks.components.gaussian import (
+    gaussian_density, gaussian_mixture_density
+)
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
@@ -133,12 +135,22 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         is made of the expected value (i.e. mean) of each selected
         component.
         """
-        priors = tf.argmax(
-            self._readouts['priors'], axis=1, output_type=tf.int32
+        # Gather parameters for better code readability.
+        priors = tf.expand_dims(self._readouts['priors'], 2)
+        means = self._readouts['means']
+        stds = tf.expand_dims(self._readouts['std_deviations'], 2)
+        # Compute the mean of the components' means, weighted by priors.
+        # Use this as an initial prediction.
+        initial = tf.expand_dims(tf.reduce_sum(priors * means, axis=1), 1)
+        # Compute the occupancy probabilities of the mixture's components.
+        densities = tf.reduce_prod(
+            gaussian_density(initial, means, stds), axis=2
         )
-        self._readouts['prediction'] = (
-            tf.gather_nd(self._readouts['means'], index_tensor(priors))
-        )
+        norm = tf.expand_dims(tf.reduce_sum(densities, axis=1), 1)
+        occupancy = tf.expand_dims(dentities / (norm + 1e-30), 2)
+        # Compute the mean of the component's means, weighted by occupancy.
+        # Use this as the targets' prediction.
+        self._readouts['prediction'] = tf.reduce_sum(occupancy * means, axis=1)
 
     @onetimemethod
     def _build_training_function(self):
