@@ -135,10 +135,13 @@ def load_utterance(name, **kwargs):
     """
     args = _SETUP.copy()
     args.update(kwargs)
-    return (
-        load_acoustic(name, args['audio_types'], args['context_window']),
-        load_ema(name, args['ema_norm'], args['dynamic_window'])
+    acoustic = load_acoustic(
+        name, args['audio_types'], args['context_window'], args['zero_padding']
     )
+    ema = load_ema(name, args['ema_norm'], args['dynamic_window'])
+    if not args['zero_padding'] and args['context_window']:
+        ema = ema[args['context_window']:-args['context_window']]
+    return acoustic, ema
 
 
 def load_utterance_list(set_name):
