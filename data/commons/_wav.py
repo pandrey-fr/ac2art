@@ -135,7 +135,7 @@ def linear_predictive_coding(frames, n_coeff=20):
     # Compute the frame-wise LPC coefficients.
     autocorrelations = librosa.autocorrelate(frames, n_coeff + 1)
     lpc = np.array([
-        # Levinson-Durbin recursion. False positive pylint: disable=E1101
+        # Levinson-Durbin recursion. False positive pylint: disable=no-member
         scipy.linalg.solve_toeplitz(autocorr[:-1], autocorr[1:])
         for autocorr in autocorrelations
     ])

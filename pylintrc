@@ -1,2 +1,8 @@
 [DESIGN]
+# As most functions are actually methods, an additional argument is
+# authorized to make up for the fact that pylint counts "self" as one.
 max-args = 6
+
+[TYPECHECK]
+# Way too many false positive warnings to add comments everywhere.
+ignored-modules = numpy
