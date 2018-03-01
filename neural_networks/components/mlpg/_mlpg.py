@@ -5,7 +5,6 @@
 import tensorflow as tf
 
 from neural_networks.components.gaussian import gaussian_density
-from neural_networks.tf_utils import index_tensor, tensor_length
 from neural_networks.utils import check_positive_int
 
 
@@ -127,10 +126,7 @@ def generate_trajectory_from_gaussian_mixture(
         """Generate a parameters sequence using occupancy probabilities."""
         # Compute occupancy probabilities (i.e. posterior of components).
         norm = tf.expand_dims(tf.reduce_sum(densities, axis=1), 1)
-        occupancy = tf.expand_dims(densities / norm, 2)
-        occupancy = tf.where(
-            tf.is_nan(occupancy), tf.zeros_like(occupancy), occupancy
-        )
+        occupancy = tf.expand_dims(densities / (norm + 1e-30), 2)
         # Derive a weighted sequence of means and standard deviations.
         return (
             tf.reduce_sum(occupancy * means, axis=1),
@@ -150,12 +146,10 @@ def generate_trajectory_from_gaussian_mixture(
             lambda: (index + 1, trajectory, densities, log_likelihood),
             lambda: (n_steps, previous_traject, previous_dens, previous_ll)
         )
-    # Choose an initial trajectory, using a random sequence of components.
-    sequence = index_tensor(tf.random_uniform(
-        [tensor_length(priors)], 0, priors.shape[1], dtype=tf.int32
-    ))
+    # Choose an initial trajectory, using the component's priors as weights.
     init_trajectory, init_densities, init_ll = generate_trajectory(
-        tf.gather_nd(means, sequence), tf.gather_nd(stds, sequence)
+        tf.reduce_sum(tf.expand_dims(priors, 2) * means, axis=1),
+        tf.reduce_sum(tf.expand_dims(priors, 2) * stds, axis=1)
     )
     # Iteratively update the selected trajectory with an E-M algorithm.
     _, trajectory, _, _ = tf.while_loop(
