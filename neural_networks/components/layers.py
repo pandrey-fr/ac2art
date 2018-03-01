@@ -5,6 +5,7 @@
 import inspect
 
 import tensorflow as tf
+import numpy as np
 
 from neural_networks.tf_utils import (
     conv2d, get_activation_function, get_activation_function_name
@@ -84,8 +85,8 @@ class NeuralLayer:
     def get_values(self, session):
         """Return the layer's weight and bias current values.
 
-        session: a tensorflow.Session in the context of which
-                 the evaluation is to be performed
+        session : a tensorflow.Session in the context of which
+                  the evaluation is to be performed
 
         Return a tuple containing the weight matrix and the bias
         scalar (or None if the layer has no bias component).
@@ -93,6 +94,28 @@ class NeuralLayer:
         if self.bias is None:
             return (session.run(self.weight), None)
         return session.run((self.weight, self.bias))
+
+    def set_values(self, weights, session):
+        """Set the layer's weight and bias to given values.
+
+        weights : a tuple containing the values to assign as
+                  numpy.ndarray (or None if there is no bias)
+        session : a tensorflow.Session in the context of which
+                  the assignment is to be performed
+        """
+        conform = (
+            isinstance(weights, tuple) and len(weights) == 2
+            and isinstance(weights[0], np.ndarray)
+            and (
+                weights[1] is None if self.bias is None
+                else isinstance(weights[1], np.ndarray)
+            )
+        )
+        if not conform:
+            raise TypeError("Invalid 'weights' argument.")
+        session.run(tf.assign(self.weight, weights[0]))
+        if self.bias is not None:
+            session.run(tf.assign(self.bias, weights[1]))
 
 
 class DenseLayer(NeuralLayer):

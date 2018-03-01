@@ -222,13 +222,6 @@ def load_dumped_model(filename, model=None):
         raise TypeError("Invalid network architecture.")
     # Restore the model's weights.
     for name, layer in model._layers.items():
-        if isinstance(layer, NeuralLayer):
-            weight, bias = config['values'][name]
-            model.session.run(layer.weight.assign(weight))
-            if bias is not None:
-                model.session.run(layer.bias.assign(bias))
-        elif isinstance(layer, SignalFilter):
-            cutoff = config['values'][name]
-            model.session.run(layer.cutoff.assign(cutoff))
+        layer.set_values(config['values'][name], model.session)
     # If the model was instanciated within this function, return it.
     return model if new_model else None

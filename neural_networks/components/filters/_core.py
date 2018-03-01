@@ -46,7 +46,6 @@ class SignalFilter(metaclass=ABCMeta):
     necessary keyword arguments to the `__init__`, which may then be
     called as-is.
     """
-    # More of a structure than a class. pylint: disable=too-few-public-methods
 
     def __init__(self, signal, cutoff, learnable=True, **kwargs):
         """Initialize the filter.
@@ -119,7 +118,18 @@ class SignalFilter(metaclass=ABCMeta):
     def get_values(self, session):
         """Return the current cutoff value.
 
-        session: a tensorflow.Session in the context of which
-                 the evaluation is to be performed
+        session : a tensorflow.Session in the context of which
+                  the evaluation is to be performed
         """
         return session.run(self.cutoff)
+
+    def set_values(self, cutoff, session):
+        """Change the filter's current cutoff value.
+
+        cutoff  : numpy.ndarray of cutoff values to assign
+        session : a tensorflow.Session in the context of which
+                  the assignment is to be performed
+        """
+        if not isinstance(cutoff, np.ndarray) or len(cutoff) != self.n_channels:
+            raise TypeError("Invalid 'cutoff' argument.")
+        session.run(tf.assign(self.cutoff, cutoff))
