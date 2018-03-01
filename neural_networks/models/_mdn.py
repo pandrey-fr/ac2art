@@ -11,7 +11,6 @@ from neural_networks.components.gaussian import (
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
-from neural_networks.tf_utils import index_tensor
 from neural_networks.utils import (
     check_type_validity, check_positive_int, onetimemethod
 )
@@ -98,16 +97,20 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             raw_parameters[:, self.n_components:self.n_components + n_means],
             (-1, self.n_components, self.n_targets)
         )
-        self._readouts['std_deviations'] = (
-            tf.exp(raw_parameters[:, self.n_components + n_means:])
+        self._readouts['std_deviations'] = tf.exp(
+            raw_parameters[:, self.n_components + n_means:]
         )
 
     @onetimemethod
     def _build_likelihood_readouts(self):
         """Build wrappers computing the likelihood of the produced GMM."""
         # Define the network's likelihood.
+        targets = (
+            self._holders['targets'] if self.norm_params is None
+            else self._holders['targets'] / self.norm_params
+        )
         self._readouts['likelihood'] = gaussian_mixture_density(
-            self._holders['targets'], self._readouts['priors'],
+            targets, self._readouts['priors'],
             self._readouts['means'], self._readouts['std_deviations']
         )
         # Define the error function and training step optimization program.
@@ -147,7 +150,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             gaussian_density(initial, means, stds), axis=2
         )
         norm = tf.expand_dims(tf.reduce_sum(densities, axis=1), 1)
-        occupancy = tf.expand_dims(dentities / (norm + 1e-30), 2)
+        occupancy = tf.expand_dims(densities / (norm + 1e-30), 2)
         # Compute the mean of the component's means, weighted by occupancy.
         # Use this as the targets' prediction.
         self._readouts['prediction'] = tf.reduce_sum(occupancy * means, axis=1)
