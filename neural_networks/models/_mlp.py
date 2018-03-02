@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
 from neural_networks.components.filters import LowpassFilter
-from neural_networks.components.layers import DenseLayer
+from neural_networks.components.layers import DenseLayer, NeuralLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.utils import (
     check_positive_int, check_type_validity, raise_type_error, onetimemethod
@@ -148,9 +148,25 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     @onetimemethod
     def _build_training_function(self):
         """Build the train step function of the network."""
-        self._training_function = (
-            self.optimizer.minimize(self._readouts['rmse'])
+        # Build a function optimizing the layer's weights.
+        weights = [
+            (layer.weight, layer.bias)
+            if layer.bias is not None else layer.weight
+            for layer in self._layers.values()
+            if isinstance(layer, NeuralLayer)
+        ]
+        fit_weights = self.optimizer.minimize(
+            self._readouts['rmse'], var_list=weights
         )
+        # If the readout filter is learnable, optimize its cutoff frequency.
+        filt = self._layers['readout_filter']
+        if filt.learnable:
+            fit_filter = tf.train.GradientDescentOptimizer(10).minimize(
+                self._readouts['rmse'], var_list=[filt.cutoff]
+            )
+            self._training_function = [fit_weights, fit_filter]
+        else:
+            self._training_function = fit_weights
 
     def _get_feed_dict(self, input_data, targets=None, keep_prob=1):
         """Build a tensorflow feeding dictionary out of provided arguments.
@@ -178,7 +194,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                      the training procedure (float in [0., 1.], default 1.)
         """
         feed_dict = self._get_feed_dict(input_data, targets, keep_prob)
-        self._training_function.run(feed_dict, self.session)
+        self.session.run(self._training_function, feed_dict)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
