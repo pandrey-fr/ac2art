@@ -9,8 +9,6 @@ from collections import OrderedDict
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.components.filters import SignalFilter
-from neural_networks.components.layers import NeuralLayer
 from neural_networks.utils import (
     check_positive_int, check_type_validity, instanciate,
     raise_type_error, onetimemethod
