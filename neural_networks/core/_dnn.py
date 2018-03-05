@@ -9,6 +9,7 @@ from collections import OrderedDict
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.components.layers import NeuralLayer
 from neural_networks.utils import (
     check_positive_int, check_type_validity, instanciate,
     raise_type_error, onetimemethod
@@ -91,6 +92,14 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             name: layer.get_values(self.session)
             for name, layer in self._layers.items()
         }
+
+    @property
+    def _layer_weights(self):
+        """Return the weight and biases tensors of all network layers."""
+        return [
+            (layer.weight, layer.bias) if layer.bias else layer.weight
+            for layer in self._layers.values() if isinstance(layer, NeuralLayer)
+        ]
 
     def _adjust_init_arguments_for_saving(self):
         """Adjust `_init_arguments` attribute before dumping the model.

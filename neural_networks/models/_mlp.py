@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
 from neural_networks.components.filters import LowpassFilter
-from neural_networks.components.layers import DenseLayer, NeuralLayer
+from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.utils import (
     check_positive_int, check_type_validity, raise_type_error, onetimemethod
@@ -39,20 +39,10 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                         SGD optimizer with 1e-3 learning rate)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
-        # Control filter kwargs argument.
-        filter_params = {
-            'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
-        }
-        if isinstance(filter_kwargs, dict):
-            filter_params.update(filter_kwargs)
-        elif filter_kwargs is not None:
-            raise_type_error(
-                'filter_kwargs', (dict, type(None)), type(filter_kwargs)
-            )
         super().__init__(
             input_shape, n_targets, activation, norm_params,
-            layers_shape=layers_shape, optimizer=optimizer,
-            filter_kwargs=filter_params
+            layers_shape=layers_shape, filter_kwargs=filter_kwargs,
+            optimizer=optimizer
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -92,6 +82,17 @@ class MultilayerPerceptron(DeepNeuralNetwork):
             raise TypeError(
                 "'layers_shape' must contain positive integers only."
             )
+        # Control filter kwargs argument.
+        filter_params = {
+            'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
+        }
+        if isinstance(self.filter_kwargs, dict):
+            filter_params.update(self.filter_kwargs)
+        elif self.filter_kwargs is not None:
+            raise_type_error(
+                'filter_kwargs', (dict, type(None)), type(self.filter_kwargs)
+            )
+        self._init_arguments['filter_kwargs'] = filter_params
         # Control optimizer argument.
         if self.optimizer is None:
             self._init_arguments['optimizer'] = (
@@ -149,20 +150,15 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     def _build_training_function(self):
         """Build the train step function of the network."""
         # Build a function optimizing the layer's weights.
-        weights = [
-            (layer.weight, layer.bias)
-            if layer.bias is not None else layer.weight
-            for layer in self._layers.values()
-            if isinstance(layer, NeuralLayer)
-        ]
         fit_weights = self.optimizer.minimize(
-            self._readouts['rmse'], var_list=weights
+            self._readouts['rmse'], var_list=self._layer_weights
         )
         # If the readout filter is learnable, optimize its cutoff frequency.
         filt = self._layers['readout_filter']
         if filt.learnable:
-            fit_filter = tf.train.GradientDescentOptimizer(10).minimize(
-                self._readouts['rmse'], var_list=[filt.cutoff]
+            # Necessary access. pylint: disable=protected-access
+            fit_filter = filt.get_cutoff_training_function(
+                self._readouts['rmse'], self.optimizer._leaning_rate * 1000
             )
             self._training_function = [fit_weights, fit_filter]
         else:

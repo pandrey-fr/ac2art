@@ -133,3 +133,14 @@ class SignalFilter(metaclass=ABCMeta):
         if not isinstance(cutoff, np.ndarray) or len(cutoff) != self.n_channels:
             raise TypeError("Invalid 'cutoff' argument.")
         session.run(tf.assign(self.cutoff, cutoff))
+
+    def get_cutoff_training_function(self, quantity, learning_rate):
+        """Build and return a training function to learn the filter's cutoff.
+
+        quantity      : tensorflow.Tensor which needs minimizing
+        learning_rate : learning rate of the SGD optimizer to use
+        """
+        if not self.learnable:
+            raise RuntimeError("This filter instance is not learnable.")
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+        return optimizer.minimize(quantity, var_list=[self.cutoff])
