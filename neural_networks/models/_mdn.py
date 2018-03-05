@@ -8,6 +8,7 @@ from neural_networks.components import build_rmse_readouts
 from neural_networks.components.gaussian import (
     gaussian_density, gaussian_mixture_density
 )
+from neural_networks.components.filters import LowpassFilter
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
@@ -36,20 +37,23 @@ class MixtureDensityNetwork(MultilayerPerceptron):
 
     def __init__(
             self, input_shape, n_targets, n_components, layers_shape,
-            norm_params, activation='relu', optimizer=None
+            norm_params, activation='relu', filter_kwargs=None, optimizer=None
         ):
         """Instanciate the mixture density network.
 
-        input_shape  : shape of the input data fed to the network,
-                       with the number of samples as first component
-        n_targets    : number of real-valued targets to predict
-        n_components : number of mixture components to model
-        layers_shape : a tuple of int defining the hidden layers' sizes
-        norm_params  : optional numpy array of targets normalization parameters
-        activation   : either an activation function or its short name
-                       (default 'relu', i.e. tensorflow.nn.relu)
-        optimizer    : tensorflow.train.Optimizer instance (by default,
-                       GradientDescentOptimizer with 1e-3 learning rate)
+        input_shape   : shape of the input data fed to the network,
+                        with the number of samples as first component
+        n_targets     : number of real-valued targets to predict
+        n_components  : number of mixture components to model
+        layers_shape  : a tuple of int defining the hidden layers' sizes
+        norm_params   : optional numpy array of targets normalization parameters
+        activation    : either an activation function or its short name
+                        (default 'relu', i.e. tensorflow.nn.relu)
+        filter_kwargs : dict of keyword arguments setting up a final
+                        low-pass filter (by default, learnable filter
+                        initialized at 20 Hz, with a 200 hz sampling rate)
+        optimizer     : tensorflow.train.Optimizer instance (by default,
+                        GradientDescentOptimizer with 1e-3 learning rate)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Use the basic API init instead of that of the direct parent.
@@ -58,7 +62,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         DeepNeuralNetwork.__init__(
             self, input_shape, n_targets, activation, norm_params,
             n_components=n_components, layers_shape=layers_shape,
-            optimizer=optimizer
+            filter_kwargs=filter_kwargs, optimizer=optimizer
         )
 
     def _validate_args(self):
@@ -122,10 +126,12 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     def _build_trajectory_readouts(self):
         """Build wrappers selecting a trajectory and computing its RMSE."""
         self._build_prediction_readout()
-        prediction = (
-            self._readouts['prediction'] if self.norm_params is None
-            else self._readouts['prediction'] * self.norm_params
+        self._layers['readout_filter'] = LowpassFilter(
+            signal=self._readouts['raw_prediction'], **self.filter_kwargs
         )
+        prediction = self._layers['readout_filter'].output
+        if self.norm_params is not None:
+            prediction *= self.norm_params
         readouts = build_rmse_readouts(prediction, self._holders['targets'])
         self._readouts.update(readouts)
 
@@ -153,16 +159,20 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         occupancy = tf.expand_dims(densities / (norm + 1e-30), 2)
         # Compute the mean of the component's means, weighted by occupancy.
         # Use this as the targets' prediction.
-        self._readouts['prediction'] = tf.reduce_sum(occupancy * means, axis=1)
+        prediction = tf.reduce_sum(occupancy * means, axis=1)
+        self._readouts['raw_prediction'] = prediction
 
     @onetimemethod
     def _build_training_function(self):
         """Build the model's training step method."""
-        # Declare the network's usable optimization programs.
+        # Build a function to maximize the network's mean log-likelihood.
         maximize_likelihood = self.optimizer.minimize(
-            -1 * self._readouts['mean_log_likelihood']
+            -1 * self._readouts['mean_log_likelihood'],
+            var_list=self._layer_weights
         )
-        minimize_rmse = self.optimizer.minimize(self._readouts['rmse'])
+        # Build a function to minimize the prediction error.
+        super()._build_training_function()
+        minimize_rmse = self._training_function
         # Declare a two-fold train step function.
         def train_step(fit='likelihood'):
             """Modular training step, depending on the metric to use."""

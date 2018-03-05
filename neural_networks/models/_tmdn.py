@@ -38,7 +38,8 @@ class TrajectoryMDN(MixtureDensityNetwork):
 
     def __init__(
             self, input_shape, n_targets, n_components, layers_shape,
-            norm_params, activation='relu', optimizer=None, delta_window=5
+            norm_params, activation='relu', filter_kwargs=None,
+            optimizer=None, delta_window=5
         ):
         """Instanciate the trajectory mixture density network.
 
@@ -50,6 +51,9 @@ class TrajectoryMDN(MixtureDensityNetwork):
         norm_params  : optional numpy array of targets normalization parameters
         activation   : either an activation function or its short name
                        (default 'relu', i.e. tensorflow.nn.relu)
+        filter_kwargs : dict of keyword arguments setting up a final
+                        low-pass filter (by default, learnable filter
+                        initialized at 20 Hz, with a 200 hz sampling rate)
         optimizer    : tensorflow.train.Optimizer instance (by default,
                        GradientDescentOptimizer with 1e-3 learning rate)
         delta_window : half-size of the time window used to compute dynamic
@@ -107,7 +111,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
             self._readouts['std_deviations_raw'],
             self._holders['_delta_weights']
         )
-        self._readouts['prediction'] = trajectory
+        self._readouts['raw_prediction'] = trajectory
 
     def _get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
