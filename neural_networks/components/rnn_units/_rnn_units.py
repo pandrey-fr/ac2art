@@ -7,6 +7,9 @@ from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.tf_utils import (
+    get_activation_function_name, setup_activation_function
+)
 from neural_networks.utils import check_positive_int, check_type_validity
 
 
@@ -14,7 +17,7 @@ class AbstractRNN(metaclass=ABCMeta):
     """Abstract class defining an API for recurrent neural network stacks."""
 
     @abstractmethod
-    def __init__(self, input_data, layers_shape, cell_type):
+    def __init__(self, input_data, layers_shape, cell_type, activation='tanh'):
         """Instanciate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
@@ -23,6 +26,8 @@ class AbstractRNN(metaclass=ABCMeta):
         layers_shape : number of units per layer (int or tuple of int)
         cell_type    : type of recurrent cells to use
                        (tf.nn.rnn_cell.RNNCell subclass)
+        activation   : activation function of the cell units (function
+                       or function name, default 'tanh')
 
         This needs overriding by subclasses to actually build the network
         out of the pre-validated arguments.
@@ -50,11 +55,14 @@ class AbstractRNN(metaclass=ABCMeta):
                 "'cell_type' is not a tensorflow.nn.rnn_cell.RNNCell subclass."
             )
         self.cell_type = cell_type.__module__ + '.' + cell_type.__name__
+        # Set up the activation function.
+        self.activation = setup_activation_function(activation)
 
     @property
     def configuration(self):
         """Return a dict specifying the network's configuration."""
         return {
+            'activation': get_activation_function_name(self.activation),
             'cell_type': self.cell_type,
             'class': self.__class__.__module__ + '.' + self.__class__.__name__,
             'layers_shape': self.layers_shape
@@ -71,10 +79,41 @@ class AbstractRNN(metaclass=ABCMeta):
         raise NotImplementedError("No 'set_values' method defined.")
 
 
-class RecurrentNeuralNetwork(AbstractRNN):
-    """Class wrapping Recurrent Neural Network units in tensorflow."""
+def assign_rnn_weights(container, weights, session):
+    """Assign their values to a recurrent neural network's cells' weights.
 
-    def __init__(self, input_data, layers_shape, cell_type):
+    container : a list of tuples containing kernel and bias weights
+                tensors whose values to update
+    weights   : a list of tuples containing kernel and bias weights
+                numpy.ndarray containing values to assign
+    session   : a tensorflow.Session in the context of which
+                the assignment is to be performed
+    """
+    # Check input weights' conformity.
+    conform = (
+        isinstance(weights, list)
+        and len(weights) != len(container)
+        and all(
+            isinstance(weight, tuple) and len(weight) == 2
+            and isinstance(weight[0], np.ndarray)
+            and isinstance(weight[1], np.ndarray)
+            for weight in weights
+        )
+    )
+    if not conform:
+        raise TypeError("Invalid 'weights' argument.")
+    # Assign weights.
+    index = 0
+    for weight, bias in weights:
+        session.run(tf.assign(container[index][0], weight))
+        session.run(tf.assign(container[index][1], bias))
+        index += 1
+
+
+class RecurrentNeuralNetwork(AbstractRNN):
+    """Class wrapping Recurrent Neural Network stacks in tensorflow."""
+
+    def __init__(self, input_data, layers_shape, cell_type, activation='tanh'):
         """Instanciate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
@@ -83,8 +122,10 @@ class RecurrentNeuralNetwork(AbstractRNN):
         layers_shape : number of units per layer (int or tuple of int)
         cell_type    : type of recurrent cells to use
                        (tf.nn.rnn_cell.RNNCell subclass)
+        activation   : activation function of the cell units (function
+                       or function name, default 'tanh')
         """
-        super().__init__(input_data, layers_shape, cell_type)
+        super().__init__(input_data, layers_shape, cell_type, activation)
         # Build a wrapper for the network's cells.
         self.cells = tf.nn.rnn_cell.MultiRNNCell(
             [cell_type(n_units) for n_units in self.layers_shape]
@@ -120,31 +161,16 @@ class RecurrentNeuralNetwork(AbstractRNN):
         session : a tensorflow.Session in the context of which
                   the assignment is to be performed
         """
-        # Check input weights' conformity.
-        conform = (
-            isinstance(weights, list)
-            and len(weights) != len(self.weights)
-            and all(
-                isinstance(weight, tuple) and len(weight) == 2
-                and isinstance(weight[0], np.ndarray)
-                and isinstance(weight[1], np.ndarray)
-                for weight in weights
-            )
-        )
-        if not conform:
-            raise TypeError("Invalid 'weights' argument.")
-        # Assign weights.
-        index = 0
-        for weight, bias in weights:
-            session.run(tf.assign(self.weights[index][0], weight))
-            session.run(tf.assign(self.weights[index][1], bias))
-            index += 1
+        assign_rnn_weights(self.weights, weights, session)
 
 
 class BidirectionalRNN(AbstractRNN):
-    """Class wrapping bidirectional RNN units in tensorflow."""
+    """Class wrapping bidirectional RNN stacks in tensorflow."""
 
-    def __init__(self, input_data, layers_shape, cell_type):
+    def __init__(
+            self, input_data, layers_shape, cell_type, activation='tanh',
+            aggregate='concatenate'
+        ):
         """Instanciate the bidirectional recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
@@ -154,8 +180,18 @@ class BidirectionalRNN(AbstractRNN):
                        common to both forward and backward units
         cell_type    : type of recurrent cells to use
                        (tf.nn.rnn_cell.RNNCell subclass)
+        activation   : activation function of the cell units (function
+                       or function name, default 'tanh')
+        aggregate    : aggregation method for the network's outputs
+                       (one of {'concatenate', 'mean', 'min', 'max'},
+                       default 'concatenate')
         """
-        super().__init__(input_data, layers_shape, cell_type)
+        super().__init__(input_data, layers_shape, cell_type, activation)
+        # Check aggregate argument validity.
+        check_type_validity(aggregate, str, 'aggregate')
+        if aggregate not in ['concatenate', 'mean', 'min', 'max']:
+            raise TypeError("Unknown aggregation method: '%s'." % aggregate)
+        self.aggregate = aggregate
         # Build forward and backward cells' wrappers.
         def build_cells():
             """Build a multi RNN cell wrapper adjusted to this instance."""
@@ -165,14 +201,25 @@ class BidirectionalRNN(AbstractRNN):
         self.forward_cells = build_cells()
         self.backward_cells = build_cells()
         # Build the bidirectional recurrent unit.
-        output, states = tf.nn.bidirectional_dynamic_rnn(
+        outputs, states = tf.nn.bidirectional_dynamic_rnn(
             self.forward_cells, self.backward_cells, self.input_data,
             dtype=tf.float32
         )
-        self.output = output  # TODO: implement output reshaping options
-        fw_state, bw_state = states
-        self.forward_state = fw_state[0] if self.single_batch else fw_state
-        self.backward_state = bw_state[0] if self.single_batch else bw_state
+        # Unpack the network's outputs and aggregate them.
+        fw_output = outputs[0][0] if self.single_batch else outputs[0]
+        bw_output = outputs[1][0] if self.single_batch else outputs[1]
+        if self.aggregate == 'concatenate':
+            self.output = tf.concat([fw_output, bw_output], axis=-1)
+        elif self.aggregate == 'mean':
+            self.output = tf.add(fw_output, bw_output) / 2
+        elif self.aggregate == 'min':
+            self.output = tf.minimum(fw_output, bw_output)
+        elif self.aggregate == 'max':
+            self.output = tf.maximum(fw_output, bw_output)
+        # Unpack the network's state outputs.
+        self.states = (
+            (states[0][0], states[1][0]) if self.single_batch else states
+        )
         # Wrap the forward and backward cells' weights into attributes.
         def get_cells_weights(cells):
             """Return the weights of given cells as a list of tuples."""
@@ -182,6 +229,13 @@ class BidirectionalRNN(AbstractRNN):
             ]
         self.forward_weights = get_cells_weights(self.forward_cells)
         self.backward_weights = get_cells_weights(self.backward_cells)
+
+    @property
+    def configuration(self):
+        """Return a dict specifying the network's configuration."""
+        configuration = super().configuration
+        configuration.update({'aggregate': self.aggregate})
+        return configuration
 
     def get_values(self, session):
         """Return the network's cells' kernel and bias weights' current values.
@@ -202,24 +256,18 @@ class BidirectionalRNN(AbstractRNN):
         session : a tensorflow.Session in the context of which
                   the assignment is to be performed
         """
-        # FIXME: adjust this implementation.
-        raise NotImplementedError('Unfinished method.')
-        # Check input weights' conformity.
-        conform = (
-            isinstance(weights, list)
-            and len(weights) != len(self.weights)
-            and all(
-                isinstance(weight, tuple) and len(weight) == 2
-                and isinstance(weight[0], np.ndarray)
-                and isinstance(weight[1], np.ndarray)
-                for weight in weights
-            )
-        )
-        if not conform:
-            raise TypeError("Invalid 'weights' argument.")
-        # Assign weights.
-        index = 0
-        for weight, bias in weights:
-            session.run(tf.assign(self.weights[index][0], weight))
-            session.run(tf.assign(self.weights[index][1], bias))
-            index += 1
+        # Unpack forward and backward weights.
+        if not isinstance(weights, tuple) and len(weights) == 2:
+            raise TypeError("Invalid 'weights' argument: should be a tuple.")
+        forward_weights, backward_weights = weights
+        # Make a safe save of the current forward weights.
+        current_forward = self.get_values(session)[0]
+        # Assign the forward cells' weights.
+        assign_rnn_weights(self.forward_weights, forward_weights, session)
+        # Assign the backward cells' weights.
+        try:
+            assign_rnn_weights(self.backward_weights, backward_weights, session)
+        # In case of a type error, restore the initial forward weights.
+        except TypeError as exception:
+            assign_rnn_weights(self.forward_weights, current_forward, session)
+            raise exception
