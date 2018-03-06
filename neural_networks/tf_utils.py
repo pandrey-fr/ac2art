@@ -2,6 +2,8 @@
 
 """Set of tensorflow-related utility functions."""
 
+import inspect
+
 import tensorflow as tf
 import numpy as np
 
@@ -46,6 +48,21 @@ def get_activation_function_name(function):
     if function not in functions:
         return function.__module__ + '.' + function.__name__
     return list(ACTIVATION_FUNCTIONS.keys())[functions.index(function)]
+
+
+def setup_activation_function(activation):
+    """Validate and return a tensorflow activation function.
+
+    activation : either an actual function, returned as is,
+                 or a function name, from which the actual
+                 function is looked for and returned.
+    """
+    if isinstance(activation, str):
+        return get_activation_function(activation)
+    elif inspect.isfunction(activation):
+        return activation
+    else:
+        raise TypeError("'activation' should be a str or a function.")
 
 
 def index_tensor(tensor, start=0):

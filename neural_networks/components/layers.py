@@ -8,7 +8,7 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.tf_utils import (
-    conv2d, get_activation_function, get_activation_function_name
+    conv2d, setup_activation_function, get_activation_function_name
 )
 
 
@@ -33,12 +33,7 @@ class NeuralLayer:
         """
         # Meant to be wrapped by children. pylint: disable=too-many-arguments
         # Set up the activation function.
-        if isinstance(activation, str):
-            self.activation = get_activation_function(activation)
-        elif inspect.isfunction(activation):
-            self.activation = activation
-        else:
-            raise TypeError("'activation' should be a str or a function.")
+        self.activation = setup_activation_function(activation)
         # Set up the input-weighting function.
         if not inspect.isfunction(operation):
             raise TypeError("'operation' should be a function.")
