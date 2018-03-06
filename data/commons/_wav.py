@@ -65,11 +65,11 @@ class Wav:
             for i in range(0, len(self.signal) - frame_size, hop_size)
         ])
 
-    def get_mfcc(self, n_coeff=20):
+    def get_mfcc(self, n_coeff=12):
         """Return Mel-frequency cepstral coefficients for each audio frame.
 
         n_coeff    : number of MFCC to return for each frame
-                     (positive int, default 20)
+                     (positive int, default 12, maximum 40)
 
         This implementation is based on that of 'librosa.features.mfcc',
         which it adapts so as to pass some specific options when building
@@ -77,6 +77,8 @@ class Wav:
         """
         if self.frames is None:
             raise AttributeError('The wav file has not been framed yet.')
+        if not 1 <= n_coeff <= 40:
+            raise ValueError('Invalid number of MFCC coefficients.')
         # Build a spectrogram.
         n_frames, frames_size = self.frames.shape
         hop_size = int(len(self.signal) / n_frames)
@@ -84,7 +86,7 @@ class Wav:
             librosa.stft(self.signal, frames_size, hop_size, center=False)
         )
         # Adjust the spectrogram to the mel scale.
-        melfilt = librosa.filters.mel(self.sampling_rate, frames_size, n_coeff)
+        melfilt = librosa.filters.mel(self.sampling_rate, frames_size, 40)
         melspectrogram = np.dot(melfilt, spectrogram)
         # Compute the mel log powers. Return its discrete cosine transform.
         mels = librosa.power_to_db(melspectrogram)
