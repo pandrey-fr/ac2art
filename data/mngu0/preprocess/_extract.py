@@ -3,6 +3,7 @@
 """Set of functions to extract raw mngu0 data."""
 
 import os
+import sys
 import time
 
 import numpy as np
@@ -61,7 +62,8 @@ DOC_EXTRACT_DETAILS = """
 
 DOC_EXTRACT_ARGUMENTS = """
     n_coeff           : number of coefficients to compute for each
-                        representation of the audio data (int, default 40)
+                        representation of the audio data - either
+                        a single int or a tuple of ints (default 40)
     audio_forms       : optional list of representations of the audio data
                         to produce, among {'energy', 'lsf', 'lpc', 'mfcc'}
                         (list of str, default None implying all of them)
@@ -110,6 +112,7 @@ def extract_all_utterances(
         )
         end_time = time.asctime().split(' ')[-2]
         print('%s : Done with utterance %s.' % (end_time, utterance))
+        sys.stdout.write('\033[F')
 
 
 extract_all_utterances.__doc__ = extract_all_utterances.__doc__.format(
