@@ -15,16 +15,18 @@ _, FOLDER = load_data_paths('mngu0')
 
 _SETUP = {
     'audio_types': ('mfcc_stds', 'energy'),
-    'ema_norm': 'stds',
-    'dynamic_window': 0,
     'context_window': 5,
+    'dynamic_audio': True,
+    'dynamic_ema': False,
+    'dynamic_window': 5,
+    'ema_norm': 'mean',
     'zero_padding': True
 }
 
 
 def change_loading_setup(
-        audio_types=None, ema_norm=None, dynamic_window=None,
-        context_window=None, zero_padding=None
+        audio_types=None, context_window=None, dynamic_audio=None,
+        dynamic_ema=None, dynamic_window=None, ema_norm=None, zero_padding=None
     ):
     """Update the default arguments used when importing mngu0 data.
 
@@ -34,21 +36,23 @@ def change_loading_setup(
 
     audio_types    : tuple of names of audio features to use,
                      including normalization indications
-    ema_norm       : optional type of normalization of the EMA data
-                     (set to None to use raw EMA data)
-    dynamic_window : half-size of the window used when computing dynamic
-                     articulatory features
-                     (set to zero to get static features only)
     context_window : half-size of the context window of acoustic inputs
                      (set to zero to use single audio frames as input)
+    dynamic_audio  : whether to compute dynamic audio features
+    dynamic_ema    : whether to compute dynamic articulatory features
+    dynamic_window : half-size of the window used when computing dynamic
+                     features
+    ema_norm       : optional type of normalization of the EMA data
+                     (set to '' to use raw EMA data)
     zero_padding   : whether to use zero-padding when building context
-                     windows, or use edge frames as context only.
+                     windows, or use edge frames as context only
 
     Any number of the previous parameters may be passed to this function.
     All arguments left to their default value of `None` will go unchanged.
 
     To see the current value of the parameters, use `see_loading_setup`.
     """
+    # Arguments serve modularity; pylint: disable=too-many-arguments
     # Broadly catch all arguments; pylint: disable=unused-argument
     kwargs = locals()
     for key, argument in kwargs.items():
@@ -72,7 +76,8 @@ def get_normalization_parameters(file_type):
 
 
 def load_acoustic(
-        name, audio_types=('mfcc_stds',), context_window=0, zero_padding=True
+        name, audio_types=('mfcc_stds',), context_window=0,
+        dynamic_window=0, zero_padding=True
     ):
     """Load the acoustic data associated with an utterance from mngu0.
 
@@ -81,12 +86,16 @@ def load_acoustic(
                      including normalization indications
     context_window : half-size of the context window of frames to return
                      (default 0, returning single audio frames)
+    dynamic_window : half-size of the window used when computing dynamic
+                     features (default 0, returning static features only)
     zero_padding   : whether to zero-pad the data when building context
                      frames (bool, default True)
     """
     acoustic = np.concatenate([
         _load_acoustic(name, audio_type) for audio_type in audio_types
     ], axis=1)
+    if dynamic_window:
+        acoustic = add_dynamic_features(acoustic, dynamic_window)
     if context_window:
         acoustic = build_context_windows(acoustic, context_window, zero_padding)
     return acoustic
@@ -107,7 +116,7 @@ def _load_acoustic(name, audio_type):
     return np.load(os.path.join(FOLDER, folder, name + '_%s.npy' % audio_type))
 
 
-def load_ema(name, norm_type=None, dynamic_window=0):
+def load_ema(name, norm_type='', dynamic_window=0):
     """Load the articulatory data associated with an utterance from mngu0.
 
     name           : name of the utterance whose data to load (str)
@@ -116,8 +125,10 @@ def load_ema(name, norm_type=None, dynamic_window=0):
                      articulatory features (default 0, returning static
                      features only)
     """
-    ema_folder = 'ema_norm_' + norm_type if norm_type else 'ema'
-    ema = np.load(os.path.join(FOLDER, ema_folder, name + '_ema.npy'))
+    ema_dir = 'ema' if norm_type in ('', 'mean') else 'ema_norm_' + norm_type
+    ema = np.load(os.path.join(FOLDER, ema_dir, name + '_ema.npy'))
+    if norm_type == 'mean':
+        ema -= get_normalization_parameters('ema')['global_means']
     if dynamic_window:
         ema = add_dynamic_features(ema, window=dynamic_window)
     return ema
@@ -136,9 +147,14 @@ def load_utterance(name, **kwargs):
     args = _SETUP.copy()
     args.update(kwargs)
     acoustic = load_acoustic(
-        name, args['audio_types'], args['context_window'], args['zero_padding']
+        name, args['audio_types'], args['context_window'],
+        dynamic_window=args['dynamic_window'] if args['dynamic_audio'] else 0,
+        zero_padding=args['zero_padding']
     )
-    ema = load_ema(name, args['ema_norm'], args['dynamic_window'])
+    ema = load_ema(
+        name, args['ema_norm'],
+        dynamic_window=args['dynamic_window'] if args['dynamic_ema'] else 0
+    )
     if not args['zero_padding'] and args['context_window']:
         ema = ema[args['context_window']:-args['context_window']]
     return acoustic, ema
