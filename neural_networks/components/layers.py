@@ -7,6 +7,7 @@ import inspect
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.utils import check_type_validity
 from neural_networks.tf_utils import (
     conv2d, setup_activation_function, get_activation_function_name
 )
@@ -28,8 +29,7 @@ class NeuralLayer:
         weight_dim : list recording the dimensions of the weight matrix
         bias       : whether to add a bias constant to the transformed data
                      passed to the activation function (bool, default True)
-        pooling    : optional pooling (or reshaping) function to apply
-                     on top of this layer (function, default None)
+        pooling    : optional pooling function to apply on top of this layer
         """
         # Meant to be wrapped by children. pylint: disable=too-many-arguments
         # Set up the activation function.
@@ -117,7 +117,7 @@ class DenseLayer(NeuralLayer):
     """Dense layer of fully-connected units."""
 
     def __init__(
-            self, input_data, n_units, activation, bias=True, pooling=None
+            self, input_data, n_units, activation, bias=True, keep_prob=None
         ):
         """Initialize the fully-connected neural layer.
 
@@ -126,13 +126,21 @@ class DenseLayer(NeuralLayer):
         activation : activation function or activation function name
         bias       : whether to add a bias constant to the transformed data
                      passed to the activation function (bool, default True)
-        pooling    : optional pooling (or reshaping) function to apply
-                     on top of this layer (function, default None)
+        keep_prob  : optional Tensor recording a keep probability to use
+                     as a dropout parameter
         """
+        check_type_validity(keep_prob, (tf.Tensor, type(None)), 'keep_prob')
+        if keep_prob is None:
+            dropout = None
+        else:
+            def dropout(input_data):
+                """Dropout filter pooling the output of a neural layer."""
+                nonlocal keep_prob
+                return tf.nn.dropout(input_data, keep_prob=keep_prob)
         super().__init__(
             input_data, activation, operation=tf.matmul,
             weight_dim=[input_data.shape[1].value, n_units],
-            bias=bias, pooling=pooling
+            bias=bias, pooling=dropout
         )
 
 
@@ -152,8 +160,7 @@ class ConvolutionalLayer(NeuralLayer):
         activation  : activation function or activation function name
         bias        : whether to add a bias constant to the transformed data
                       passed to the activation function (bool, default True)
-        pooling     : optional pooling (or reshaping) function to apply
-                      on top of this layer (function, default None)
+        pooling    : optional pooling function to apply on top of this layer
         """
         super().__init__(
             input_data, activation, operation=conv2d,

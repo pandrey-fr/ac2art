@@ -107,20 +107,15 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     @onetimemethod
     def _build_layers(self):
         """Build the layers stack of the multilayer perceptron."""
-        # Define a dropout pooling function.
-        keep_prob = self._holders['keep_prob']
-        def dropout(input_data):
-            """Dropout filter pooling the output of a neural layer."""
-            nonlocal keep_prob
-            return tf.nn.dropout(input_data, keep_prob=keep_prob)
         # Build the network's hidden layers.
         self._layers['dense_layer_0'] = DenseLayer(
             self._holders['input'], self.layers_shape[0],
-            self.activation, pooling=dropout
+            self.activation, keep_prob=self._holders['keep_prob']
         )
         for i, shape in enumerate(self.layers_shape[1:], 1):
             self._layers['dense_layer_%s' % i] = DenseLayer(
-                self._top_layer.output, shape, self.activation, pooling=dropout
+                self._top_layer.output, shape, self.activation,
+                keep_prob=self._holders['keep_prob']
             )
         # Build the network's readout layer.
         self._build_readout_layer()
