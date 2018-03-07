@@ -8,7 +8,8 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.tf_utils import (
-    get_activation_function_name, setup_activation_function
+    get_activation_function_name, get_rnn_cell_type_name,
+    setup_activation_function, setup_rnn_cell_type
 )
 from neural_networks.utils import check_positive_int, check_type_validity
 
@@ -17,21 +18,30 @@ class AbstractRNN(metaclass=ABCMeta):
     """Abstract class defining an API for recurrent neural network stacks."""
 
     @abstractmethod
-    def __init__(self, input_data, layers_shape, cell_type, activation='tanh'):
+    def __init__(
+            self, input_data, layers_shape, cell_type='lstm',
+            activation='tanh', name='rnn'
+        ):
         """Instanciate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
-        cell_type    : type of recurrent cells to use
-                       (tf.nn.rnn_cell.RNNCell subclass)
+        cell_type    : type of recurrent cells to use (short name (str)
+                       or tensorflow.nn.rnn_cell.RNNCell subclass,
+                       default 'lstm', i.e. LSTMCell)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
+        name         : name of the stack (using the same name twice will
+                       cause tensorflow to raise an exception)
 
         This needs overriding by subclasses to actually build the network
         out of the pre-validated arguments.
         """
+        # Check name validity.
+        check_type_validity(name, str, 'name')
+        self.name = name
         # Check input data valitidy.
         check_type_validity(input_data, tf.Tensor, 'input_data')
         if len(input_data.shape) not in [2, 3]:
@@ -49,13 +59,8 @@ class AbstractRNN(metaclass=ABCMeta):
         for value in layers_shape:
             check_positive_int(value, "layer's number of units")
         self.layers_shape = layers_shape
-        # Check cell type validity.
-        if not issubclass(cell_type, tf.nn.rnn_cell.RNNCell):
-            raise TypeError(
-                "'cell_type' is not a tensorflow.nn.rnn_cell.RNNCell subclass."
-            )
-        self.cell_type = cell_type.__module__ + '.' + cell_type.__name__
-        # Set up the activation function.
+        # Set up the RNN cell type and activation function.
+        self.cell_type = setup_rnn_cell_type(cell_type)
         self.activation = setup_activation_function(activation)
 
     @property
@@ -63,7 +68,7 @@ class AbstractRNN(metaclass=ABCMeta):
         """Return a dict specifying the network's configuration."""
         return {
             'activation': get_activation_function_name(self.activation),
-            'cell_type': self.cell_type,
+            'cell_type': get_rnn_cell_type_name(self.cell_type),
             'class': self.__class__.__module__ + '.' + self.__class__.__name__,
             'layers_shape': self.layers_shape
         }
@@ -113,23 +118,30 @@ def assign_rnn_weights(container, weights, session):
 class RecurrentNeuralNetwork(AbstractRNN):
     """Class wrapping Recurrent Neural Network stacks in tensorflow."""
 
-    def __init__(self, input_data, layers_shape, cell_type, activation='tanh'):
+    def __init__(
+            self, input_data, layers_shape, cell_type='lstm',
+            activation='tanh', name='rnn'
+        ):
         """Instanciate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
-        cell_type    : type of recurrent cells to use
-                       (tf.nn.rnn_cell.RNNCell subclass)
+        cell_type    : type of recurrent cells to use (short name (str)
+                       or tensorflow.nn.rnn_cell.RNNCell subclass,
+                       default 'lstm', i.e. LSTMCell)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
+        name         : name of the stack (using the same name twice will
+                       cause tensorflow to raise an exception)
         """
-        super().__init__(input_data, layers_shape, cell_type, activation)
+        super().__init__(input_data, layers_shape, cell_type, activation, name)
         # Build a wrapper for the network's cells.
-        self.cells = tf.nn.rnn_cell.MultiRNNCell(
-            [cell_type(n_units) for n_units in self.layers_shape]
-        )
+        self.cells = tf.nn.rnn_cell.MultiRNNCell([
+            self.cell_type(n_units, name=self.name + '_%s' % i)
+            for i, n_units in enumerate(self.layers_shape)
+        ])
         # Build the recurrent unit.
         output, state = tf.nn.dynamic_rnn(
             self.cells, self.input_data, dtype=tf.float32
@@ -168,8 +180,8 @@ class BidirectionalRNN(AbstractRNN):
     """Class wrapping bidirectional RNN stacks in tensorflow."""
 
     def __init__(
-            self, input_data, layers_shape, cell_type, activation='tanh',
-            aggregate='concatenate'
+            self, input_data, layers_shape, cell_type='lstm',
+            activation='tanh', name='rnn', aggregate='concatenate'
         ):
         """Instanciate the bidirectional recurrent neural network.
 
@@ -178,28 +190,33 @@ class BidirectionalRNN(AbstractRNN):
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int),
                        common to both forward and backward units
-        cell_type    : type of recurrent cells to use
-                       (tf.nn.rnn_cell.RNNCell subclass)
+        cell_type    : type of recurrent cells to use (short name (str)
+                       or tensorflow.nn.rnn_cell.RNNCell subclass,
+                       default 'lstm', i.e. LSTMCell)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
+        name         : name of the stack (using the same name twice will
+                       cause tensorflow to raise an exception)
         aggregate    : aggregation method for the network's outputs
                        (one of {'concatenate', 'mean', 'min', 'max'},
                        default 'concatenate')
         """
-        super().__init__(input_data, layers_shape, cell_type, activation)
+        # Arguments serve modularity; pylint: disable=too-many-arguments
+        super().__init__(input_data, layers_shape, cell_type, activation, name)
         # Check aggregate argument validity.
         check_type_validity(aggregate, str, 'aggregate')
         if aggregate not in ['concatenate', 'mean', 'min', 'max']:
             raise TypeError("Unknown aggregation method: '%s'." % aggregate)
         self.aggregate = aggregate
         # Build forward and backward cells' wrappers.
-        def build_cells():
+        def build_cells(name):
             """Build a multi RNN cell wrapper adjusted to this instance."""
             return tf.nn.rnn_cell.MultiRNNCell([
-                cell_type(n_units) for n_units in self.layers_shape
+                self.cell_type(n_units, name=name + '_%s' % i)
+                for i, n_units in enumerate(self.layers_shape)
             ])
-        self.forward_cells = build_cells()
-        self.backward_cells = build_cells()
+        self.forward_cells = build_cells(self.name + '_fw')
+        self.backward_cells = build_cells(self.name + '_bw')
         # Build the bidirectional recurrent unit.
         outputs, states = tf.nn.bidirectional_dynamic_rnn(
             self.forward_cells, self.backward_cells, self.input_data,
