@@ -198,7 +198,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             # Check sub-elements type validity.
             check_type_validity(config[0], (str, type), 'layer class')
             check_type_validity(
-                config[1], (int, list), 'layer config primary parameter'
+                config[1], (int, list, tuple), 'layer config primary parameter'
             )
             check_type_validity(config[2], dict, 'layer config kwargs')
         # Validate the model's number of targets.
