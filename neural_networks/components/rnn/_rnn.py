@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Module docstring."""
+"""Class wrapping recurrent neural network layer stacks in tensorflow."""
 
 from abc import ABCMeta, abstractmethod
 
@@ -37,7 +37,8 @@ class AbstractRNN(metaclass=ABCMeta):
                        cause tensorflow to raise an exception)
 
         This needs overriding by subclasses to actually build the network
-        out of the pre-validated arguments.
+        out of the pre-validated arguments. The `weights` argument should
+        also be filled in by subclasses.
         """
         # Check name validity.
         check_type_validity(name, str, 'name')
@@ -62,6 +63,8 @@ class AbstractRNN(metaclass=ABCMeta):
         # Set up the RNN cell type and activation function.
         self.cell_type = setup_rnn_cell_type(cell_type)
         self.activation = setup_activation_function(activation)
+        # Set up an argument that needs assigning by subclasses.
+        self.weights = None
 
     @property
     def configuration(self):
@@ -178,6 +181,7 @@ class RecurrentNeuralNetwork(AbstractRNN):
 
 class BidirectionalRNN(AbstractRNN):
     """Class wrapping bidirectional RNN stacks in tensorflow."""
+    # Attributes serve clarity; pylint: disable=too-many-instance-attributes
 
     def __init__(
             self, input_data, layers_shape, cell_type='lstm',
@@ -244,8 +248,9 @@ class BidirectionalRNN(AbstractRNN):
             return [
                 (weights[i], weights[i + 1]) for i in range(0, len(weights), 2)
             ]
-        self.forward_weights = get_cells_weights(self.forward_cells)
-        self.backward_weights = get_cells_weights(self.backward_cells)
+        self._forward_weights = get_cells_weights(self.forward_cells)
+        self._backward_weights = get_cells_weights(self.backward_cells)
+        self.weights = [self._forward_weights, self._backward_weights]
 
     @property
     def configuration(self):
@@ -263,7 +268,7 @@ class BidirectionalRNN(AbstractRNN):
         Return a list containing the tuple of kernel and bias weights
         associated to each cell of the network.
         """
-        return session.run([self.forward_weights, self.backward_weights])
+        return session.run(self.weights)
 
     def set_values(self, weights, session):
         """Set the recurrent neural network's weights to given values.
@@ -280,11 +285,13 @@ class BidirectionalRNN(AbstractRNN):
         # Make a safe save of the current forward weights.
         current_forward = self.get_values(session)[0]
         # Assign the forward cells' weights.
-        assign_rnn_weights(self.forward_weights, forward_weights, session)
+        assign_rnn_weights(self._forward_weights, forward_weights, session)
         # Assign the backward cells' weights.
         try:
-            assign_rnn_weights(self.backward_weights, backward_weights, session)
-        # In case of a type error, restore the initial forward weights.
-        except TypeError as exception:
-            assign_rnn_weights(self.forward_weights, current_forward, session)
+            assign_rnn_weights(
+                self._backward_weights, backward_weights, session
+            )
+        # In case of error, restore the initial forward weights.
+        except Exception as exception:  # pylint: disable=broad-except
+            assign_rnn_weights(self._forward_weights, current_forward, session)
             raise exception

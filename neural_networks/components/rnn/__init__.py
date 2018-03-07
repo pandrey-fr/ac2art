@@ -2,4 +2,4 @@
 
 """Recurrent neural network units' wrapper in tensorflow."""
 
-from ._rnn_units import RecurrentNeuralNetwork, BidirectionalRNN
+from ._rnn import AbstractRNN, RecurrentNeuralNetwork, BidirectionalRNN

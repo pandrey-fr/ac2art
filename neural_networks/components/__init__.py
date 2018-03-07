@@ -7,3 +7,4 @@ from . import filters
 from . import gaussian
 from . import layers
 from . import mlpg
+from . import rnn
