@@ -3,17 +3,39 @@
 """Abstract neural network class and model dump loading function."""
 
 from abc import ABCMeta, abstractmethod
-import inspect
 from collections import OrderedDict
 
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.components.layers import NeuralLayer
-from neural_networks.utils import (
-    check_positive_int, check_type_validity, instanciate,
-    raise_type_error, onetimemethod
+from neural_networks.components.filters import LowpassFilter, SignalFilter
+from neural_networks.components.layers import DenseLayer, NeuralLayer
+from neural_networks.components.rnn import (
+    AbstractRNN, RecurrentNeuralNetwork, BidirectionalRNN
 )
+from neural_networks.utils import (
+    check_positive_int, check_type_validity,
+    get_object, instanciate, onetimemethod
+)
+
+
+def get_layer_class(layer_class):
+    """Validate and return a layer class.
+
+    layer_class : either a subclass from AbstractRNN, NeuralLayer
+                  or SignalFilter, or the (short) name of one such
+                  class
+    """
+    if isinstance(layer_class, str):
+        reference_dict = {
+            'dense_layer': DenseLayer, 'rnn_stack': RecurrentNeuralNetwork,
+            'bi_rnn_stack': BidirectionalRNN, 'lowpass_filter': LowpassFilter
+        }
+        return get_object(layer_class, reference_dict, 'layer class')
+    elif issubclass(layer_class, (AbstractRNN, NeuralLayer, SignalFilter)):
+        return layer_class
+    else:
+        raise TypeError("'layer_class' should be a str or an adequate class.")
 
 
 class DeepNeuralNetwork(metaclass=ABCMeta):
@@ -23,22 +45,26 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     """
 
     def __init__(
-            self, input_shape, n_targets, activation, norm_params=None, **kwargs
+            self, input_shape, n_targets, layers_config, norm_params=None,
+            **kwargs
         ):
         """Initialize the neural network.
 
-        input_shape : shape of the input data fed to the network, with
-                      the number of samples as first component
-                      (tuple, list, tensorflow.TensorShape)
-        n_targets   : number of real-valued targets to predict
-        activation  : default activation function to use (or its name)
-        norm_params : optional normalization parameters of the targets
-                      (np.ndarray)
+        input_shape   : shape of the input data fed to the network, with
+                        the number of samples as first component
+                        (tuple, list, tensorflow.TensorShape)
+        n_targets     : number of real-valued targets to predict
+        layers_config : list of tuples specifying a layer configuration,
+                        made of a layer class (or short name), a number
+                        of units (or a cutoff frequency for filters) and
+                        an optional dict of keyword arguments
+        norm_params   : optional normalization parameters of the targets
+                        (np.ndarray)
         """
         # Record and process initialization arguments.
         self._init_arguments = {
             'input_shape': input_shape, 'n_targets': n_targets,
-            'activation': activation, 'norm_params': norm_params
+            'layers_config': layers_config, 'norm_params': norm_params
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -49,7 +75,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         self._training_function = None
         # Build the network's tensorflow architecture.
         self._build_placeholders()
-        self._build_layers()
+        self._build_hidden_layers()
+        self._build_readout_layer()
         self._build_readouts()
         self._build_training_function()
         # Assign a tensorflow session to the instance.
@@ -96,9 +123,18 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @property
     def _layer_weights(self):
         """Return the weight and biases tensors of all network layers."""
+        def get_weights(layer):
+            """Return the weight variables of a given layer."""
+            if isinstance(layer, NeuralLayer):
+                return (
+                    (layer.weight, layer.bias) if layer.bias else layer.weight
+                )
+            elif isinstance(layer, AbstractRNN):
+                return layer.weights
+            raise TypeError("Unknown layer class: '%s'." % type(layer))
         return [
-            (layer.weight, layer.bias) if layer.bias else layer.weight
-            for layer in self._layers.values() if isinstance(layer, NeuralLayer)
+            get_weights(layer) for layer in self._layers.values()
+            if not isinstance(layer, SignalFilter)
         ]
 
     def _adjust_init_arguments_for_saving(self):
@@ -149,10 +185,22 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         )
         if len(self.input_shape) == 1:
             raise TypeError("'input_shape' must be at least bi-dimensional.")
-        # Validate the model's activation function.
-        activation = self.activation
-        if not (isinstance(activation, str) or inspect.isfunction(activation)):
-            raise_type_error('activation', (str, 'function'), type(activation))
+        # Validate the model's layers configuration.
+        check_type_validity(self.layers_config, list, 'layers_config')
+        for i, config in enumerate(self.layers_config):
+            # Check that the configuration is a three-elements tuple.
+            if not isinstance(config, tuple):
+                raise TypeError("'layers_config' elements should be tuples.")
+            if len(config) == 2:
+                self.layers_config[i] = config = (*config, {})
+            elif len(config) != 3:
+                raise TypeError("Wrong 'layers_config' element tuple length.")
+            # Check sub-elements type validity.
+            check_type_validity(config[0], (str, type), 'layer class')
+            check_type_validity(
+                config[1], (int, list), 'layer config primary parameter'
+            )
+            check_type_validity(config[2], dict, 'layer config kwargs')
         # Validate the model's number of targets.
         check_positive_int(self.n_targets, 'n_targets')
         # Validate the model's normalization parameters.
@@ -175,10 +223,32 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         )
         self._holders['keep_prob'] = tf.placeholder(tf.float32, ())
 
+    @onetimemethod
+    def _build_hidden_layers(self):
+        """Build the network's hidden layers."""
+        # Gather the input placeholder. Declare a layers counter.
+        input_tensor = self._holders['input']
+        layers_count = {}
+        # Iteratively build the layers.
+        for name, n_units, kwargs in self.layers_config:
+            # Get the layer's class and instanciate it.
+            layer_class = get_layer_class(name)
+            if isinstance(layer_class, DenseLayer):
+                kwargs['keep_prob'] = kwargs.get(
+                    'keep_prob', self._holders['keep_prob']
+                )
+            layer = layer_class(input_tensor, n_units, **kwargs)
+            # Update the layers counter.
+            index = layers_count.setdefault(name, 0)
+            layers_count[name] += 1
+            # Add the layer on top of the stack and use its output as next input.
+            self._layers[name + '_%s' % index] = layer
+            input_tensor = layer.output
+
     @abstractmethod
     @onetimemethod
-    def _build_layers(self):
-        """Build the network's layers.
+    def _build_readout_layer(self):
+        """Build the network's readout layer.
 
         This method should update the `_layers_stack` list attribute.
         """

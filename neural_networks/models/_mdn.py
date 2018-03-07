@@ -36,8 +36,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     """
 
     def __init__(
-            self, input_shape, n_targets, n_components, layers_shape,
-            norm_params, activation='relu', filter_kwargs=None, optimizer=None
+            self, input_shape, n_targets, n_components, layers_config,
+            norm_params=None, filter_kwargs=None, optimizer=None
         ):
         """Instanciate the mixture density network.
 
@@ -45,10 +45,14 @@ class MixtureDensityNetwork(MultilayerPerceptron):
                         with the number of samples as first component
         n_targets     : number of real-valued targets to predict
         n_components  : number of mixture components to model
-        layers_shape  : a tuple of int defining the hidden layers' sizes
-        norm_params   : optional numpy array of targets normalization parameters
-        activation    : either an activation function or its short name
-                        (default 'relu', i.e. tensorflow.nn.relu)
+        layers_config : list of tuples specifying a layer configuration,
+                        made of a layer class (or short name), a number
+                        of units (or a cutoff frequency for filters) and
+                        an optional dict of keyword arguments
+        norm_params   : optional normalization parameters of the targets
+                        (np.ndarray)
+        input_shape   : shape of the input data fed to the network,
+                        with the number of samples as first component
         filter_kwargs : dict of keyword arguments setting up a final
                         low-pass filter (by default, learnable filter
                         initialized at 20 Hz, with a 200 hz sampling rate)
@@ -60,9 +64,9 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # pylint: disable=super-init-not-called, non-parent-init-called
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, activation, norm_params,
-            n_components=n_components, layers_shape=layers_shape,
-            filter_kwargs=filter_kwargs, optimizer=optimizer
+            self, input_shape, n_targets, layers_config, norm_params,
+            n_components=n_components, filter_kwargs=filter_kwargs,
+            optimizer=optimizer
         )
 
     def _validate_args(self):

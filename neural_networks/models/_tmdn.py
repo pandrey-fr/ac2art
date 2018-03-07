@@ -37,36 +37,39 @@ class TrajectoryMDN(MixtureDensityNetwork):
     """
 
     def __init__(
-            self, input_shape, n_targets, n_components, layers_shape,
-            norm_params, activation='relu', filter_kwargs=None,
-            optimizer=None, delta_window=5
+            self, input_shape, n_targets, n_components, layers_config,
+            norm_params=None, filter_kwargs=None, optimizer=None,
+            delta_window=5
         ):
         """Instanciate the trajectory mixture density network.
 
-        input_shape  : shape of the data fed to the input layer
-        n_targets    : number of real-valued targets to predict,
-                       comprising delta and deltadelta features.
-        n_components : number of mixture components to model
-        layers_shape : a tuple of int defining the hidden layers' sizes
-        norm_params  : optional numpy array of targets normalization parameters
-        activation   : either an activation function or its short name
-                       (default 'relu', i.e. tensorflow.nn.relu)
+        input_shape   : shape of the data fed to the input layer
+        n_targets     : number of real-valued targets to predict,
+                        comprising delta and deltadelta features.
+        n_components  : number of mixture components to model
+        layers_config : list of tuples specifying a layer configuration,
+                        made of a layer class (or short name), a number
+                        of units (or a cutoff frequency for filters) and
+                        an optional dict of keyword arguments
+        norm_params   : optional numpy array of targets normalization parameters
+        activation    : either an activation function or its short name
+                        (default 'relu', i.e. tensorflow.nn.relu)
         filter_kwargs : dict of keyword arguments setting up a final
                         low-pass filter (by default, learnable filter
                         initialized at 20 Hz, with a 200 hz sampling rate)
-        optimizer    : tensorflow.train.Optimizer instance (by default,
-                       GradientDescentOptimizer with 1e-3 learning rate)
-        delta_window : half-size of the time window used to compute dynamic
-                       features out of static ones (int, default 5)
+        optimizer     : tensorflow.train.Optimizer instance (by default,
+                        GradientDescentOptimizer with 1e-3 learning rate)
+        delta_window  : half-size of the time window used to compute dynamic
+                        features out of static ones (int, default 5)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Use the basic API init instead of that of the direct parent.
         # pylint: disable=super-init-not-called, non-parent-init-called
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, activation, norm_params,
-            n_components=n_components, layers_shape=layers_shape,
-            optimizer=optimizer, delta_window=delta_window
+            self, input_shape, n_targets, layers_config, norm_params,
+            n_components=n_components, optimizer=optimizer,
+            filter_kwargs=filter_kwargs, delta_window=delta_window
         )
 
     def _validate_args(self):

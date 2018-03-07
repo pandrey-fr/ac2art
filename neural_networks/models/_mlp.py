@@ -10,28 +10,27 @@ from neural_networks.components import build_rmse_readouts
 from neural_networks.components.filters import LowpassFilter
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
-from neural_networks.utils import (
-    check_positive_int, check_type_validity, raise_type_error, onetimemethod
-)
+from neural_networks.utils import raise_type_error, onetimemethod
 
 
 class MultilayerPerceptron(DeepNeuralNetwork):
     """Class implementing the multilayer perceptron for regression."""
 
     def __init__(
-            self, input_shape, n_targets, layers_shape, norm_params,
-            activation='relu', filter_kwargs=None, optimizer=None
+            self, input_shape, n_targets, layers_config, norm_params=None,
+            filter_kwargs=None, optimizer=None
         ):
         """Instanciate a multilayer perceptron for regression tasks.
 
         input_shape   : shape of the input data fed to the network,
                         with the number of samples as first component
         n_targets     : number of real-valued targets to predict
-        layers_shape  : a tuple of int defining the hidden layers' sizes
+        layers_config : list of tuples specifying a layer configuration,
+                        made of a layer class (or short name), a number
+                        of units (or a cutoff frequency for filters) and
+                        an optional dict of keyword arguments
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
-        activation    : either an activation function or its name
-                        (default 'relu', i.e. tensorflow.nn.relu)
         filter_kwargs : dict of keyword arguments setting up a final
                         low-pass filter (by default, learnable filter
                         initialized at 20 Hz, with a 200 hz sampling rate)
@@ -40,9 +39,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_shape, n_targets, activation, norm_params,
-            layers_shape=layers_shape, filter_kwargs=filter_kwargs,
-            optimizer=optimizer
+            input_shape, n_targets, layers_config, norm_params,
+            filter_kwargs=filter_kwargs, optimizer=optimizer
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -74,14 +72,6 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """Process the initialization arguments of the instance."""
         # Control arguments common to any DeepNeuralNetwork subclass.
         super()._validate_args()
-        # Control layers shape argument.
-        check_type_validity(self.layers_shape, tuple, 'layers_shape')
-        try:
-            [check_positive_int(shape, '') for shape in self.layers_shape]
-        except (TypeError, ValueError):
-            raise TypeError(
-                "'layers_shape' must contain positive integers only."
-            )
         # Control filter kwargs argument.
         filter_params = {
             'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
@@ -103,22 +93,6 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                 'optimizer', (type(None), dict, 'tensorflow.train.Optimizer'),
                 type(self.optimizer).__name__
             )
-
-    @onetimemethod
-    def _build_layers(self):
-        """Build the layers stack of the multilayer perceptron."""
-        # Build the network's hidden layers.
-        self._layers['dense_layer_0'] = DenseLayer(
-            self._holders['input'], self.layers_shape[0],
-            self.activation, keep_prob=self._holders['keep_prob']
-        )
-        for i, shape in enumerate(self.layers_shape[1:], 1):
-            self._layers['dense_layer_%s' % i] = DenseLayer(
-                self._top_layer.output, shape, self.activation,
-                keep_prob=self._holders['keep_prob']
-            )
-        # Build the network's readout layer.
-        self._build_readout_layer()
 
     @onetimemethod
     def _build_readout_layer(self):
