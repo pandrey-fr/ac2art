@@ -7,6 +7,10 @@ import inspect
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.utils import (
+    check_type_validity, get_object, get_object_name
+)
+
 
 def binary_step(tensor):
     """Return a binary output depending on an input's positivity."""
@@ -26,43 +30,19 @@ ACTIVATION_FUNCTIONS = {
 }
 
 
-def get_activation_function(function_name):
-    """Return the tensorflow activation function of given name."""
-    if function_name not in ACTIVATION_FUNCTIONS.keys():
-        if not function_name.count('.'):
-            raise KeyError(
-                "Invalid activation function name: '%s'.\n"
-                "A valid name should either belong to {'%s'} or "
-                "consist of a full module name and function name."
-                % (function_name, "', '".join(list(ACTIVATION_FUNCTIONS)))
-            )
-        module_name, function_name = function_name.rsplit('.', 1)
-        module = __import__(module_name, fromlist=[module_name])
-        return getattr(module, function_name)
-    return ACTIVATION_FUNCTIONS[function_name]
+RNN_CELL_TYPES = {
+    'lstm': tf.nn.rnn_cell.LSTMCell, 'gru': tf.nn.rnn_cell.GRUCell
+}
 
 
 def get_activation_function_name(function):
-    """Return the name of a given activation function."""
-    functions = list(ACTIVATION_FUNCTIONS.values())
-    if function not in functions:
-        return function.__module__ + '.' + function.__name__
-    return list(ACTIVATION_FUNCTIONS.keys())[functions.index(function)]
+    """Return the short name or full import name of an activation function."""
+    return get_object_name(function, ACTIVATION_FUNCTIONS)
 
 
-def setup_activation_function(activation):
-    """Validate and return a tensorflow activation function.
-
-    activation : either an actual function, returned as is,
-                 or a function name, from which the actual
-                 function is looked for and returned.
-    """
-    if isinstance(activation, str):
-        return get_activation_function(activation)
-    elif inspect.isfunction(activation):
-        return activation
-    else:
-        raise TypeError("'activation' should be a str or a function.")
+def get_rnn_cell_type_name(cell_type):
+    """Return the short name or full import name of a RNN cell type."""
+    return get_object_name(cell_type, RNN_CELL_TYPES)
 
 
 def index_tensor(tensor, start=0):
@@ -89,6 +69,42 @@ def log_base(tensor, base):
     if tensor.dtype in [tf.int32, tf.int64]:
         tensor = tf.cast(tensor, tf.float32)
     return tf.log(tensor) / tf.log(base)
+
+
+def setup_activation_function(activation):
+    """Validate and return a tensorflow activation function.
+
+    activation : either an actual function, returned as is,
+                 or a function name, from which the actual
+                 function is looked for and returned.
+    """
+    if isinstance(activation, str):
+        return get_object(
+            activation, ACTIVATION_FUNCTIONS, 'activation function'
+        )
+    elif inspect.isfunction(activation):
+        return activation
+    else:
+        raise TypeError("'activation' should be a str or a function.")
+
+
+def setup_rnn_cell_type(cell_type):
+    """Validate and return a tensorflow RNN cell type.
+
+    cell_type : either an actual cell type, returned as is,
+                or a cell type name, from which the actual
+                type is looked for and returned.
+    """
+    check_type_validity(cell_type, (str, type), 'cell_type')
+    if isinstance(cell_type, str):
+        return get_object(
+            cell_type, RNN_CELL_TYPES, 'RNN cell type'
+        )
+    elif issubclass(cell_type, tf.nn.rnn_cell.RNNCell):
+        return cell_type
+    raise TypeError(
+        "'cell_type' is not a tensorflow.nn.rnn_cell.RNNCell subclass."
+        )
 
 
 def sinc(tensor):

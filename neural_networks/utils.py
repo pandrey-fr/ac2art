@@ -30,6 +30,51 @@ def check_type_validity(instance, valid_types, var_name):
         raise_type_error(var_name, valid_types, type(instance).__name__)
 
 
+def get_object(name, reference_dict, object_name):
+    """Return a function or type of given name.
+
+    name           : either a valid key to the `reference_dict` or
+                     the full import name of the object to return
+    reference_dict : dict associating return values to str keys
+    object_name    : string designating the kind of object being
+                     reached, used to disambiguate error messages
+    """
+    check_type_validity(name, str, 'name')
+    check_type_validity(reference_dict, dict, 'reference_dict')
+    check_type_validity(object_name, str, 'object_name')
+    if name not in reference_dict.keys():
+        if not name.count('.'):
+            raise KeyError(
+                "Invalid %s name: '%s'.\n" % (object_name, name)
+                + "A valid name should either belong to {'%s'} or "
+                "consist of a full module name and function name."
+                % "', '".join(list(reference_dict))
+            )
+        module_name, name = name.rsplit('.', 1)
+        return import_from_string(module_name, name)
+    return reference_dict[name]
+
+
+def get_object_name(func_or_type, reference_dict):
+    """Return the name of a given function or type.
+
+    If the function or type belongs to a reference dict's values,
+    return the key to which it is associated ; otherwise, return
+    its full import path.
+
+    func_or_type   : the function or type whose name to return
+    reference_dict : a dict associating some expected functions
+                     or types to str keys
+    """
+    if not (inspect.isfunction(func_or_type) or isinstance(func_or_type, type)):
+        raise_type_error('func_or_type', ('function', type), type(func_or_type))
+    check_type_validity(reference_dict, dict, 'reference_dict')
+    keys = list(reference_dict.values())
+    if func_or_type not in keys:
+        return func_or_type.__module__ + '.' + func_or_type.__name__
+    return list(reference_dict.keys())[keys.index(func_or_type)]
+
+
 def import_from_string(module, elements):
     """Import and return elements from a module based on their names.
 
@@ -71,6 +116,25 @@ def instanciate(class_name, init_kwargs, rebuild_init=None):
     return constructor(**init_kwargs)
 
 
+def onetimemethod(method):
+    """Decorator for method which need to be executable only once."""
+    if not inspect.isfunction(method):
+        raise TypeError('Not a function.')
+    has_run = {}
+    @functools.wraps(method)
+    def wrapped(self, *args, **kwargs):
+        """Wrapped method being run once and only once."""
+        nonlocal has_run
+        if has_run.setdefault(id(self), False):
+            raise RuntimeError(
+                "One-time method '%s' has already been called for this instance."
+                % method.__name__
+            )
+        has_run[id(self)] = True
+        return method(self, *args, **kwargs)
+    return wrapped
+
+
 def raise_type_error(var_name, valid_types, var_type):
     """Raise a custom TypeError.
 
@@ -89,22 +153,3 @@ def raise_type_error(var_name, valid_types, var_type):
         "Expected '%s' to be of type %s, not %s."
         % (var_name, names_string, getattr(var_type, '__name__', var_type))
     )
-
-
-def onetimemethod(method):
-    """Decorator for method which need to be executable only once."""
-    if not inspect.isfunction(method):
-        raise TypeError('Not a function.')
-    has_run = {}
-    @functools.wraps(method)
-    def wrapped(self, *args, **kwargs):
-        """Wrapped method being run once and only once."""
-        nonlocal has_run
-        if has_run.setdefault(id(self), False):
-            raise RuntimeError(
-                "One-time method '%s' has already been called for this instance."
-                % method.__name__
-            )
-        has_run[id(self)] = True
-        return method(self, *args, **kwargs)
-    return wrapped
