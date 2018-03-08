@@ -16,6 +16,14 @@ from data.utils import (
 RAW_FOLDER, _ = load_data_paths('mngu0')
 
 
+def get_utterances_list():
+    """Return the full list of mngu0 utterances' names."""
+    wav_folder = os.path.join(RAW_FOLDER, 'wav_16kHz')
+    return sorted([
+        name[:-4] for name in os.listdir(wav_folder) if name.endswith('.wav')
+    ])
+
+
 def load_wav(filename, frame_size=200, hop_time=5):
     """Load data from a mngu0 waveform (.wav) file.
 
