@@ -16,8 +16,7 @@ _, FOLDER = load_data_paths('mngu0')
 _SETUP = {
     'audio_types': ('mfcc_stds', 'energy'),
     'context_window': 5,
-    'dynamic_audio': True,
-    'dynamic_ema': False,
+    'use_dynamic': 'audio',
     'dynamic_window': 5,
     'ema_norm': 'mean',
     'zero_padding': True
@@ -25,8 +24,8 @@ _SETUP = {
 
 
 def change_loading_setup(
-        audio_types=None, context_window=None, dynamic_audio=None,
-        dynamic_ema=None, dynamic_window=None, ema_norm=None, zero_padding=None
+        audio_types=None, context_window=None, use_dynamic=None,
+        dynamic_window=None, ema_norm=None, zero_padding=None
     ):
     """Update the default arguments used when importing mngu0 data.
 
@@ -38,8 +37,8 @@ def change_loading_setup(
                      including normalization indications
     context_window : half-size of the context window of acoustic inputs
                      (set to zero to use single audio frames as input)
-    dynamic_audio  : whether to compute dynamic audio features
-    dynamic_ema    : whether to compute dynamic articulatory features
+    use_dynamic    : which dynamic features to compute
+                     ('audio', 'ema', 'none' or 'both')
     dynamic_window : half-size of the window used when computing dynamic
                      features
     ema_norm       : optional type of normalization of the EMA data
@@ -52,7 +51,6 @@ def change_loading_setup(
 
     To see the current value of the parameters, use `see_loading_setup`.
     """
-    # Arguments serve modularity; pylint: disable=too-many-arguments
     # Broadly catch all arguments; pylint: disable=unused-argument
     kwargs = locals()
     for key, argument in kwargs.items():
@@ -146,14 +144,23 @@ def load_utterance(name, **kwargs):
     """
     args = _SETUP.copy()
     args.update(kwargs)
+    # Unpack dynamic features argument.
+    dynamic_audio = dynamic_ema = False
+    if args['use_dynamic'] == 'both':
+        dynamic_audio = dynamic_ema = True
+    elif args['use_dynamic'] == 'audio':
+        dynamic_audio = True
+    elif args['use_dynamic'] == 'ema':
+        dynamic_ema = True
+    # Load acoustic and articulatory data.
     acoustic = load_acoustic(
         name, args['audio_types'], args['context_window'],
-        dynamic_window=args['dynamic_window'] if args['dynamic_audio'] else 0,
+        dynamic_window=args['dynamic_window'] if dynamic_audio else 0,
         zero_padding=args['zero_padding']
     )
     ema = load_ema(
         name, args['ema_norm'],
-        dynamic_window=args['dynamic_window'] if args['dynamic_ema'] else 0
+        dynamic_window=args['dynamic_window'] if dynamic_ema else 0
     )
     if not args['zero_padding'] and args['context_window']:
         ema = ema[args['context_window']:-args['context_window']]
