@@ -159,13 +159,13 @@ def _extract_utterance_data(
     """
     # Load phone labels and compute frames index so as to trim silences.
     labels = load_phone_labels(utterance)
-    start_frame = int(
+    start_frame = int(np.floor(
         (labels[0][0] if labels[0][1] == '#' else 0) * ema_sampling_rate
-    )
-    end_frame = int(
+    ))
+    end_frame = int(np.ceil(
         (labels[-2][0] if labels[-1][1] == '#' else labels[-1][0])
         * ema_sampling_rate
-    )
+    ))
     # Load EMA data and optionally resample it.
     ema, _ = load_ema(utterance, articulators_list)
     if ema_sampling_rate != 200:
