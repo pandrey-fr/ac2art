@@ -9,7 +9,9 @@ import time
 import numpy as np
 import resampy
 
-from data.mngu0.raw import load_ema, load_phone_labels, load_wav
+from data.mngu0.raw import (
+    get_utterances_list, load_ema, load_phone_labels, load_wav
+)
 from data.utils import check_positive_int, check_type_validity, load_data_paths
 
 
@@ -25,12 +27,8 @@ def adjust_filesets():
     similar train, validation and test utterances of newly-processed data
     as in most papers using this database.
     """
-    # Load the list of raw utterances (which are also the newly processed ones).
-    utterances = sorted([
-        name[:-4]
-        for name in os.listdir(os.path.join(RAW_FOLDER, 'ema_basic_data'))
-        if name.endswith('.ema')
-    ])
+    # Load the full list of utterances.
+    utterances = get_utterances_list()
     # Build the output 'filesets' folder if needed.
     output_folder = os.path.join(NEW_FOLDER, 'filesets')
     if not os.path.isdir(output_folder):
@@ -100,12 +98,8 @@ def extract_all_utterances(
         n_coeff, audio_forms, articulators_list,
         ema_sampling_rate, audio_frames_size
     )
-    # Gather the list of all mngu0 utterances to process.
-    wav_folder = os.path.join(RAW_FOLDER, 'wav_16kHz')
-    utterances = sorted([
-        name[:-4] for name in os.listdir(wav_folder) if name.endswith('.wav')
-    ])
-    for utterance in utterances:
+    # Iterate over all mngu0 utterances.
+    for utterance in get_utterances_list():
         _extract_utterance_data(
             utterance, n_coeff, audio_forms, articulators_list,
             ema_sampling_rate, audio_frames_size
@@ -165,13 +159,13 @@ def _extract_utterance_data(
     """
     # Load phone labels and compute frames index so as to trim silences.
     labels = load_phone_labels(utterance)
-    start_frame = int(
+    start_frame = int(np.floor(
         (labels[0][0] if labels[0][1] == '#' else 0) * ema_sampling_rate
-    )
-    end_frame = int(
+    ))
+    end_frame = int(np.ceil(
         (labels[-2][0] if labels[-1][1] == '#' else labels[-1][0])
         * ema_sampling_rate
-    )
+    ))
     # Load EMA data and optionally resample it.
     ema, _ = load_ema(utterance, articulators_list)
     if ema_sampling_rate != 200:

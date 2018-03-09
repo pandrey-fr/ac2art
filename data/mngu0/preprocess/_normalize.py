@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 
+from data.mngu0.raw import get_utterances_list
 from data.utils import load_data_paths
 
 
@@ -28,9 +29,8 @@ def compute_files_moments(file_type, store=True):
     folder = os.path.join(FOLDER, file_type)
     # Compute file-wise means and standard deviations.
     dataset = np.array([
-        np.load(os.path.join(folder, filename))
-        for filename in sorted(os.listdir(folder))
-        if filename.endswith('_%s.npy' % file_type)
+        np.load(os.path.join(folder, name + '_%s.npy' % file_type))
+        for name in get_utterances_list()
     ])
     moments = {
         'file_means': np.array([data.mean(axis=0) for data in dataset]),
@@ -69,12 +69,7 @@ def normalize_files(file_type, norm_type='spread'):
     file_type : one in {'ema', 'energy', 'lpc', 'lsf', 'mfcc'}
     norm_type : normalization divisor to use ('spread' or 'stds')
     """
-    # Gather files list.
     input_folder = os.path.join(FOLDER, file_type)
-    files = sorted([
-        filename for filename in os.listdir(input_folder)
-        if filename.endswith('_%s.npy' % file_type)
-    ])
     # Gather files' moments. Compute them if needed.
     path = os.path.join(FOLDER, 'norm_params', 'norm_%s.npy' % file_type)
     if os.path.isfile(path):
@@ -88,6 +83,7 @@ def normalize_files(file_type, norm_type='spread'):
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)
     # Iteratively normalize the utterances.
+    files = [name + '_%s.npy' % file_type for name in get_utterances_list()]
     for filename in files:
         data = np.load(os.path.join(input_folder, filename))
         data = (data - means) / norm
