@@ -233,7 +233,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         for name, n_units, kwargs in self.layers_config:
             # Get the layer's class and instanciate it.
             layer_class = get_layer_class(name)
-            if isinstance(layer_class, DenseLayer):
+            if issubclass(layer_class, DenseLayer):
+                kwargs = kwargs.copy()
                 kwargs['keep_prob'] = kwargs.get(
                     'keep_prob', self._holders['keep_prob']
                 )
