@@ -379,7 +379,6 @@ def load_dumped_model(filename, model=None):
                (default None, implying that a model is instanciated
                based on the dumped configuration and returned)
     """
-    # Access private attributes by design; pylint: disable=protected-access
     # Load the dumped model configuration.
     config = np.load(filename).tolist()
     check_type_validity(config, dict, 'loaded configuration')
@@ -394,7 +393,7 @@ def load_dumped_model(filename, model=None):
     # Check that the model's architecture is coherent with the dump.
     if model.architecture != config['architecture']:
         raise TypeError("Invalid network architecture.")
-    # Restore the model's weights.
+    # Restore the model's weights. pylint: disable=protected-access
     for name, layer in model._layers.items():
         layer.set_values(config['values'][name], model.session)
     # If the model was instanciated within this function, return it.
