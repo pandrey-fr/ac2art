@@ -125,9 +125,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # If the readout filter is learnable, optimize its cutoff frequency.
         filt = self._layers['readout_filter']
         if filt.learnable:
-            # Necessary access. pylint: disable=protected-access
             fit_filter = filt.get_cutoff_training_function(
-                self._readouts['rmse'], self.optimizer._learning_rate * 1000
+                self._readouts['rmse'], learning_rate=1
             )
             self._training_function = [fit_weights, fit_filter]
         else:
