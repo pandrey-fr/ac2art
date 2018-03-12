@@ -73,7 +73,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any multilayer perceptron.
         super()._validate_args()
-        # Control n_components argument and compute n_components.
+        # Control n_components argument and compute n_parameters.
         check_positive_int(self.n_components, 'n_components')
         self.n_parameters = (
             self.n_components * (2 + self.n_targets)
@@ -91,7 +91,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """Build wrappers around the produced GMM parameters and likelihood."""
         self._build_parameters_readouts()
         self._build_likelihood_readouts()
-        self._build_trajectory_readouts()
+        self._build_initial_prediction()
+        self._build_prediction_readouts()
 
     @onetimemethod
     def _build_parameters_readouts(self):
@@ -127,20 +128,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         )
 
     @onetimemethod
-    def _build_trajectory_readouts(self):
-        """Build wrappers selecting a trajectory and computing its RMSE."""
-        self._build_prediction_readout()
-        self._layers['readout_filter'] = LowpassFilter(
-            signal=self._readouts['raw_prediction'], **self.filter_kwargs
-        )
-        prediction = self._layers['readout_filter'].output
-        if self.norm_params is not None:
-            prediction *= self.norm_params
-        readouts = build_rmse_readouts(prediction, self._holders['targets'])
-        self._readouts.update(readouts)
-
-    @onetimemethod
-    def _build_prediction_readout(self):
+    def _build_initial_prediction(self):
         """Build a simple trajectory prediction out of GMM parameters.
 
         A time sequence of mixture components is selected based on
@@ -165,6 +153,18 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Use this as the targets' prediction.
         prediction = tf.reduce_sum(occupancy * means, axis=1)
         self._readouts['raw_prediction'] = prediction
+
+    @onetimemethod
+    def _build_prediction_readouts(self):
+        """Build wrappers improving the prediction and computing its RMSE."""
+        self._layers['readout_filter'] = LowpassFilter(
+            signal=self._readouts['raw_prediction'], **self.filter_kwargs
+        )
+        prediction = self._layers['readout_filter'].output
+        if self.norm_params is not None:
+            prediction *= self.norm_params
+        readouts = build_rmse_readouts(prediction, self._holders['targets'])
+        self._readouts.update(readouts)
 
     @onetimemethod
     def _build_training_function(self):

@@ -106,7 +106,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         )
 
     @onetimemethod
-    def _build_prediction_readout(self):
+    def _build_initial_prediction(self):
         """Build a trajectory prediction using the MLPG algorithm."""
         trajectory = generate_trajectory_from_gaussian_mixture(
             self._readouts['priors'],
