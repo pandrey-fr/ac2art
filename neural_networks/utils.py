@@ -1,6 +1,11 @@
 # coding: utf-8
 
-"""Set of utility functions."""
+"""Set of utility functions.
+
+Note: some functions implemented here are copied or adapted
+      from the YAPTools package, written by the same author
+      (https://github.com/pandrey-fr/yaptools/)
+"""
 
 import inspect
 import functools
