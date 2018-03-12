@@ -4,7 +4,7 @@
 
 import tensorflow as tf
 
-from data.commons import build_dynamic_weights_matrix
+from data.commons.enhance import build_dynamic_weights_matrix
 from neural_networks.components.mlpg import (
     expand_tmdn_standard_deviations,
     generate_trajectory_from_gaussian_mixture
