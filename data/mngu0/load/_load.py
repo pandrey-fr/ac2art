@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from data.commons import add_dynamic_features, build_context_windows
+from data.commons.enhance import add_dynamic_features, build_context_windows
 from data.utils import CONSTANTS
 
 

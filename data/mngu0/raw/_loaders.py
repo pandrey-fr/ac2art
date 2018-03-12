@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from data.commons import Wav
+from data.commons.wav import Wav
 from data.mngu0.raw import EstTrack
 from data.utils import (
     check_type_validity, interpolate_missing_values, CONSTANTS
