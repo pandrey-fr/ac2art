@@ -30,6 +30,16 @@ def __load_constants():
 CONSTANTS = __load_constants()
 
 
+def check_batch_type(valid_type, **kwargs):
+    """Check that a batch of keyword arguments are of a given type."""
+    invalid = [name for name, arg in kwargs if not isinstance(arg, valid_type)]
+    if invalid:
+        raise TypeError(
+            "Invalid argument%s: '%s'. Should be of type %s."
+            % ('s' * (len(invalid) > 1), ', '.join(invalid), valid_type)
+        )
+
+
 def check_positive_int(instance, var_name):
     """Check that a given variable is a positive integer."""
     check_type_validity(instance, int, var_name)
