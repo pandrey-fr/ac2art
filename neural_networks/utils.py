@@ -122,7 +122,7 @@ def instanciate(class_name, init_kwargs, rebuild_init=None):
 
 
 def onetimemethod(method):
-    """Decorator for method which need to be executable only once."""
+    """Decorator for methods which need to be executable only once."""
     if not inspect.isfunction(method):
         raise TypeError('Not a function.')
     has_run = {}
@@ -132,7 +132,7 @@ def onetimemethod(method):
         nonlocal has_run
         if has_run.setdefault(id(self), False):
             raise RuntimeError(
-                "One-time method '%s' has already been called for this instance."
+                "One-time method '%s' cannot be re-run for this instance."
                 % method.__name__
             )
         has_run[id(self)] = True
