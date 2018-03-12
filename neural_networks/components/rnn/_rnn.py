@@ -20,7 +20,7 @@ class AbstractRNN(metaclass=ABCMeta):
     @abstractmethod
     def __init__(
             self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='rnn'
+            activation='tanh', name='rnn', keep_prob=None
         ):
         """Instanciate the recurrent neural network.
 
@@ -35,6 +35,8 @@ class AbstractRNN(metaclass=ABCMeta):
                        or function name, default 'tanh')
         name         : name of the stack (using the same name twice will
                        cause tensorflow to raise an exception)
+        keep_prob    : optional Tensor recording a keep probability to use
+                       as a dropout parameter
 
         This needs overriding by subclasses to actually build the network
         out of the pre-validated arguments. The `weights` argument should
@@ -60,6 +62,9 @@ class AbstractRNN(metaclass=ABCMeta):
         for value in layers_shape:
             check_positive_int(value, "layer's number of units")
         self.layers_shape = layers_shape
+        # Check keep_prob validity.
+        check_type_validity(keep_prob, (tf.Tensor, type(None)), 'keep_prob')
+        self.keep_prob = keep_prob
         # Set up the RNN cell type and activation function.
         self.cell_type = setup_rnn_cell_type(cell_type)
         self.activation = setup_activation_function(activation)
@@ -73,7 +78,8 @@ class AbstractRNN(metaclass=ABCMeta):
             'activation': get_activation_function_name(self.activation),
             'cell_type': get_rnn_cell_type_name(self.cell_type),
             'class': self.__class__.__module__ + '.' + self.__class__.__name__,
-            'layers_shape': self.layers_shape
+            'layers_shape': self.layers_shape,
+            'dropout': self.keep_prob is not None
         }
 
     @abstractmethod
@@ -118,12 +124,31 @@ def assign_rnn_weights(container, weights, session):
         index += 1
 
 
+def build_cells_wrapper(cell_type, layers_shape, activation, keep_prob):
+    """Build and return a tensorflow multi RNN cell wrapper.
+
+    cell_type    : type of units (tensorflow.nn.rnn_cell.RNNCell subclass)
+    layers_shape : sequence of int representing layers' number of units
+    activation   : activation function of the units
+    keep_prob    : keep_prob Tensor used to specify output dropout, or None
+    """
+    cells = [
+        cell_type(n_units, activation=activation) for n_units in layers_shape
+    ]
+    if keep_prob is None:
+        cells = [
+            tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+            for cell in cells
+        ]
+    return tf.nn.rnn_cell.MultiRNNCell(cells)
+
+
 class RecurrentNeuralNetwork(AbstractRNN):
     """Class wrapping Recurrent Neural Network stacks in tensorflow."""
 
     def __init__(
             self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='rnn'
+            activation='tanh', name='rnn', keep_prob=None
         ):
         """Instanciate the recurrent neural network.
 
@@ -134,20 +159,21 @@ class RecurrentNeuralNetwork(AbstractRNN):
         cell_type    : type of recurrent cells to use (short name (str)
                        or tensorflow.nn.rnn_cell.RNNCell subclass,
                        default 'lstm', i.e. LSTMCell)
-        activation   : activation function of the cell units (function
-                       or function name, default 'tanh')
         name         : name of the stack (using the same name twice will
                        cause tensorflow to raise an exception)
+        activation   : activation function of the cell units (function
+                       or function name, default 'tanh')
         """
-        super().__init__(input_data, layers_shape, cell_type, activation, name)
+        super().__init__(
+            input_data, layers_shape, cell_type, activation, name, keep_prob
+        )
         # Build a wrapper for the network's cells.
-        self.cells = tf.nn.rnn_cell.MultiRNNCell([
-            self.cell_type(n_units, name=self.name + '_%s' % i)
-            for i, n_units in enumerate(self.layers_shape)
-        ])
+        self.cells = build_cells_wrapper(
+            self.cell_type, self.layers_shape, self.activation, self.keep_prob
+        )
         # Build the recurrent unit.
         output, state = tf.nn.dynamic_rnn(
-            self.cells, self.input_data, dtype=tf.float32
+            self.cells, self.input_data, scope=self.name, dtype=tf.float32
         )
         self.output = output[0] if self.single_batch else output
         self.state = state[0] if self.single_batch else state
@@ -185,7 +211,8 @@ class BidirectionalRNN(AbstractRNN):
 
     def __init__(
             self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='rnn', aggregate='concatenate'
+            activation='tanh', name='bi_rnn', aggregate='concatenate',
+            keep_prob=None
         ):
         """Instanciate the bidirectional recurrent neural network.
 
@@ -206,25 +233,25 @@ class BidirectionalRNN(AbstractRNN):
                        default 'concatenate')
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
-        super().__init__(input_data, layers_shape, cell_type, activation, name)
+        super().__init__(
+            input_data, layers_shape, cell_type, activation, name, keep_prob
+        )
         # Check aggregate argument validity.
         check_type_validity(aggregate, str, 'aggregate')
         if aggregate not in ['concatenate', 'mean', 'min', 'max']:
             raise TypeError("Unknown aggregation method: '%s'." % aggregate)
         self.aggregate = aggregate
         # Build forward and backward cells' wrappers.
-        def build_cells(name):
-            """Build a multi RNN cell wrapper adjusted to this instance."""
-            return tf.nn.rnn_cell.MultiRNNCell([
-                self.cell_type(n_units, name=name + '_%s' % i)
-                for i, n_units in enumerate(self.layers_shape)
-            ])
-        self.forward_cells = build_cells(self.name + '_fw')
-        self.backward_cells = build_cells(self.name + '_bw')
+        self.forward_cells = build_cells_wrapper(
+            self.cell_type, self.layers_shape, self.activation, self.keep_prob
+        )
+        self.backward_cells = build_cells_wrapper(
+            self.cell_type, self.layers_shape, self.activation, self.keep_prob
+        )
         # Build the bidirectional recurrent unit.
         outputs, states = tf.nn.bidirectional_dynamic_rnn(
             self.forward_cells, self.backward_cells, self.input_data,
-            dtype=tf.float32
+            scope=self.name, dtype=tf.float32
         )
         # Unpack the network's outputs and aggregate them.
         fw_output = outputs[0][0] if self.single_batch else outputs[0]
