@@ -7,10 +7,10 @@ import os
 import numpy as np
 
 from data.mngu0.raw import get_utterances_list
-from data.utils import load_data_paths
+from data.utils import CONSTANTS
 
 
-_, FOLDER = load_data_paths('mngu0')
+FOLDER = CONSTANTS['mngu0_processed_folder']
 
 
 def compute_files_moments(file_type, store=True):

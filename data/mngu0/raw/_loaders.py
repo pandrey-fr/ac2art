@@ -9,11 +9,11 @@ import numpy as np
 from data.commons import Wav
 from data.mngu0.raw import EstTrack
 from data.utils import (
-    check_type_validity, interpolate_missing_values, load_data_paths
+    check_type_validity, interpolate_missing_values, CONSTANTS
 )
 
 
-RAW_FOLDER, _ = load_data_paths('mngu0')
+RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
 
 
 def get_utterances_list():

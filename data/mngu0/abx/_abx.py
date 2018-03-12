@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Set of functions to run ABXpy on mngu0 data."""
+"""Set of functions to run ABXpy tasks on mngu0 data."""
 
 import os
 import functools
@@ -11,10 +11,10 @@ import numpy as np
 
 from data.mngu0.raw import get_utterances_list, load_phone_labels
 from data.mngu0.load import load_acoustic, load_ema
-from data.utils import load_data_paths
+from data.utils import CONSTANTS
 
 
-RAW_FOLDER, NEW_FOLDER = load_data_paths('mngu0')
+ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
 
 
 def extract_h5_features(
@@ -34,7 +34,7 @@ def extract_h5_features(
     sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
     """
     # Check that the destination file does not exist.
-    output_file = os.path.join(NEW_FOLDER, '%s.features' % output_name)
+    output_file = os.path.join(ABX_FOLDER, '%s.features' % output_name)
     if os.path.isfile(output_file):
         raise FileExistsError("File '%s' already exists." % output_file)
     # Set up the features loading function.
@@ -89,13 +89,10 @@ def _setup_features_loader(
     return load_features
 
 
-def phones_to_itemfile():
+def make_itemfile():
     """Build a .item file for ABXpy recording mngu0 phone labels."""
-    utterances = sorted([
-        name[:-4] for name in os.listdir(os.path.join(RAW_FOLDER, 'wav_16kHz'))
-        if name.endswith('.wav')
-    ])
-    output_file = os.path.join(NEW_FOLDER, 'mngu0_phones.item')
+    utterances = get_utterances_list()
+    output_file = os.path.join(ABX_FOLDER, 'mngu0_phones.item')
     columns = ['#file', 'onset', 'offset', '#phone', 'context']
     with open(output_file, mode='w') as itemfile:
         itemfile.write(' '.join(columns) + '\n')

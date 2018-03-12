@@ -12,10 +12,11 @@ import resampy
 from data.mngu0.raw import (
     get_utterances_list, load_ema, load_phone_labels, load_wav
 )
-from data.utils import check_positive_int, check_type_validity, load_data_paths
+from data.utils import check_positive_int, check_type_validity, CONSTANTS
 
 
-RAW_FOLDER, NEW_FOLDER = load_data_paths('mngu0')
+RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
+NEW_FOLDER = CONSTANTS['mngu0_processed_folder']
 
 
 def adjust_filesets():

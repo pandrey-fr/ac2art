@@ -7,10 +7,10 @@ import os
 import numpy as np
 
 from data.commons import add_dynamic_features, build_context_windows
-from data.utils import load_data_paths
+from data.utils import CONSTANTS
 
 
-_, FOLDER = load_data_paths('mngu0')
+FOLDER = CONSTANTS['mngu0_processed_folder']
 
 
 _SETUP = {
