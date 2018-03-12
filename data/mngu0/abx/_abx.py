@@ -9,9 +9,10 @@ import h5features as h5f
 import pandas as pd
 import numpy as np
 
+from data.commons.abxpy import abxpy_pipeline, abxpy_task
 from data.mngu0.raw import get_utterances_list, load_phone_labels
 from data.mngu0.load import load_acoustic, load_ema
-from data.utils import CONSTANTS
+from data.utils import check_positive_int, check_type_validity, CONSTANTS
 
 
 ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
@@ -118,3 +119,37 @@ def _phones_to_itemfile(utterance):
             phones[i - 1] + '_' + phones[i + 1] for i in range(1, len(times))
         ]
     }
+
+
+def make_abx_task():
+    """Build a .abx ABXpy task file associated with mngu0 phones."""
+    # Build the item file if necessary.
+    item_file = os.path.join(ABX_FOLDER, 'mngu0_phones.item')
+    if not os.path.isfile(item_file):
+        make_itemfile()
+    # Run the ABXpy task module.
+    output = os.path.join(ABX_FOLDER, 'mngu0_task.abx')
+    abxpy_task(item_file, output, on='phone', by='context')
+
+
+def abx_from_features(features_filename, n_jobs=1):
+    """Run the ABXpy pipeline on a set of mngu0 features.
+
+    features_file : name of a h5 file of mngu0 features created with
+                    the `extract_h5_features` function (str)
+    n_jobs        : number of CPU cores to use (positive int, default 1)
+    """
+    check_type_validity(features_filename, str, 'features_filename')
+    check_positive_int(n_jobs, 'n_jobs')
+    # Declare paths to the files used.
+    task_file = os.path.join(ABX_FOLDER, 'mngu0_task.abx')
+    features_file = os.path.join(ABX_FOLDER, features_filename)
+    output_file = os.path.join(ABX_FOLDER, features_filename + '_abx.csv')
+    # Check that the features file exists.
+    if not os.path.exists(features_file):
+        raise FileNotFoundError("File '%s' does not exist." % features_file)
+    # Build the ABX task file if necessary.
+    if not os.path.isfile(task_file):
+        make_abx_task()
+    # Run the ABXpy pipeline.
+    abxpy_pipeline(features_file, task_file, output_file, n_jobs)
