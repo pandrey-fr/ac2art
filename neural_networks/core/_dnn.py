@@ -301,7 +301,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         input_tensor = self._holders['input']
         layers_count = {}
         # Iteratively build the layers.
-        for name, n_units, kwargs in self.layers_config:
+        for name, n_units, kwargs in self.layers_config.copy():
             # Get the layer's class and update the layers counter.
             layer_class = get_layer_class(name)
             layer_name = kwargs.pop(
