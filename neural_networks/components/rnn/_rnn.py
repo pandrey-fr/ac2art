@@ -16,6 +16,7 @@ from neural_networks.utils import check_positive_int, check_type_validity
 
 class AbstractRNN(metaclass=ABCMeta):
     """Abstract class defining an API for recurrent neural network stacks."""
+    # Attributes serve clarity; pylint: disable=too-many-instance-attributes
 
     @abstractmethod
     def __init__(
@@ -42,6 +43,7 @@ class AbstractRNN(metaclass=ABCMeta):
         out of the pre-validated arguments. The `weights` argument should
         also be filled in by subclasses.
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         # Check name validity.
         check_type_validity(name, str, 'name')
         self.name = name
@@ -51,10 +53,10 @@ class AbstractRNN(metaclass=ABCMeta):
             raise TypeError("Invalid 'input_data' rank: should be 2 or 3.")
         if len(input_data.shape) == 2:
             self.input_data = tf.expand_dims(input_data, 0)
-            self.single_batch = True
+            self._single_batch = True
         else:
             self.input_data = input_data
-            self.single_batch = False
+            self._single_batch = False
         # Check layers shape validity.
         check_type_validity(layers_shape, (tuple, int), 'layers_shape')
         if isinstance(layers_shape, int):
@@ -164,6 +166,7 @@ class RecurrentNeuralNetwork(AbstractRNN):
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
             input_data, layers_shape, cell_type, activation, name, keep_prob
         )
@@ -175,8 +178,8 @@ class RecurrentNeuralNetwork(AbstractRNN):
         output, state = tf.nn.dynamic_rnn(
             self.cells, self.input_data, scope=self.name, dtype=tf.float32
         )
-        self.output = output[0] if self.single_batch else output
-        self.state = state[0] if self.single_batch else state
+        self.output = output[0] if self._single_batch else output
+        self.state = state[0] if self._single_batch else state
         # Assign the cells' weights to the weights attribute.
         weights = self.cells.weights
         self.weights = [
@@ -254,8 +257,8 @@ class BidirectionalRNN(AbstractRNN):
             scope=self.name, dtype=tf.float32
         )
         # Unpack the network's outputs and aggregate them.
-        fw_output = outputs[0][0] if self.single_batch else outputs[0]
-        bw_output = outputs[1][0] if self.single_batch else outputs[1]
+        fw_output = outputs[0][0] if self._single_batch else outputs[0]
+        bw_output = outputs[1][0] if self._single_batch else outputs[1]
         if self.aggregate == 'concatenate':
             self.output = tf.concat([fw_output, bw_output], axis=-1)
         elif self.aggregate == 'mean':
@@ -266,7 +269,7 @@ class BidirectionalRNN(AbstractRNN):
             self.output = tf.maximum(fw_output, bw_output)
         # Unpack the network's state outputs.
         self.states = (
-            (states[0][0], states[1][0]) if self.single_batch else states
+            (states[0][0], states[1][0]) if self._single_batch else states
         )
         # Wrap the forward and backward cells' weights into attributes.
         def get_cells_weights(cells):
