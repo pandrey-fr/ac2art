@@ -33,18 +33,21 @@ def abxpy_task(item_file, output, on, across=None, by=None):
     """
     # Check arguments' type validity and adjust them if needed.
     check_batch_type(str, item_file=item_file, output=output, on=on)
-    check_batch_type((str, list, None), by=by, across=across)
+    check_batch_type((str, list, type(None)), by=by, across=across)
     if isinstance(across, list):
         across = ' '.join(across)
     if isinstance(by, list):
         by = ' '.join(by)
     # Build the task.py call and run it.
-    task = os.path.join(ABXPY_FOLDER, 'task.py') + ' -o ' + on
+    task = os.path.join(ABXPY_FOLDER, 'task.py') + ' --on=' + on
     if across is not None:
-        task += ' -a ' + across
+        task += ' --across=' + across
     if by is not None:
-        task += ' -b ' + by
-    os.system(' '.join(('python2', task, item_file, output)))
+        task += ' --by=' + by
+    status = os.system(' '.join(('python2', task, item_file, output)))
+    if status != 0:
+        raise RuntimeError("ABXpy task.py ended with status code %s." % status)
+    print('ABXpy task module was successfully run.')
 # pylint: enable=invalid-name
 
 
@@ -60,8 +63,15 @@ def abxpy_distance(features_file, task_file, output, n_jobs=1):
         str, features_file=features_file, task_file=task_file, output=output
     )
     check_positive_int(n_jobs, 'n_jobs')
-    distance = os.path.join(ABXPY_FOLDER, 'distance.py') + ' -j %s' % n_jobs
-    os.system(' '.join(('python2', distance, features_file, task_file, output)))
+    distance = os.path.join(ABXPY_FOLDER, 'distance.py')
+    distance += ' -n 1 -j %s' % n_jobs
+    cmd = ' '.join(('python2', distance, features_file, task_file, output))
+    status = os.system(cmd)
+    if status != 0:
+        raise RuntimeError(
+            "ABXpy distance.py ended with status code %s." % status
+        )
+    print('ABXpy distance module was successfully run.')
 
 
 def abxpy_score(distance_file, task_file, output):
@@ -75,7 +85,11 @@ def abxpy_score(distance_file, task_file, output):
         str, distance_file=distance_file, task_file=task_file, output=output
     )
     score = os.path.join(ABXPY_FOLDER, 'score.py')
-    os.system(' '.join(('python2', score, distance_file, task_file, output)))
+    cmd = ' '.join(('python2', score, task_file, distance_file, output))
+    status = os.system(cmd)
+    if status != 0:
+        raise RuntimeError("ABXpy score.py ended with status code %s." % status)
+    print('ABXpy score module was successfully run.')
 
 
 def abxpy_analyze(score_file, task_file, output):
@@ -89,7 +103,13 @@ def abxpy_analyze(score_file, task_file, output):
         str, score_file=score_file, task_file=task_file, output=output
     )
     analyze = os.path.join(ABXPY_FOLDER, 'analyze.py')
-    os.system(' '.join(('python2', analyze, score_file, task_file, output)))
+    cmd = ' '.join(('python2', analyze, score_file, task_file, output))
+    status = os.system(cmd)
+    if status != 0:
+        raise RuntimeError(
+            "ABXpy analyze.py ended with status code %s." % status
+        )
+    print('ABXpy analyze module was successfully run.')
 
 
 def abxpy_pipeline(features_file, task_file, output, n_jobs=1):
