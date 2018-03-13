@@ -10,8 +10,8 @@ import pandas as pd
 import numpy as np
 
 from data.commons.abxpy import abxpy_pipeline, abxpy_task
-from data.mngu0.raw import get_utterances_list, load_phone_labels
-from data.mngu0.load import load_acoustic, load_ema
+from data.mngu0.raw import load_phone_labels
+from data.mngu0.load import load_acoustic, load_ema, get_utterances_set
 from data.utils import check_positive_int, check_type_validity, CONSTANTS
 
 
@@ -20,7 +20,7 @@ ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
 
 def extract_h5_features(
         audio_features=None, ema_features=None, output_name='mngu0_features',
-        use_dynamic='both', dynamic_window=5, sampling_rate=200
+        use_dynamic='both', dynamic_window=5, sampling_rate=200, dataset=None
     ):
     """Build an h5 file recording audio features associated with mngu0 data.
 
@@ -33,7 +33,9 @@ def extract_h5_features(
     dynamic_window : half-size of the window used to compute dynamic features
                      (int, default 5, set to 0 to use static features only)
     sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
+    dataset        : optional name of a set whose utterances to use (str)
     """
+    # Arguments serve modularity; pylint: disable=too-many-arguments
     # Check that the destination file does not exist.
     output_file = os.path.join(ABX_FOLDER, '%s.features' % output_name)
     if os.path.isfile(output_file):
@@ -43,7 +45,7 @@ def extract_h5_features(
         audio_features, ema_features, use_dynamic, dynamic_window
     )
     # Load the list of utterances and process them iteratively.
-    utterances = get_utterances_list()
+    utterances = get_utterances_set(dataset)
     with h5f.Writer(output_file) as writer:
         for i in range(0, len(utterances), 100):
             # Load or compute the utterances list, features and time labels.
@@ -51,8 +53,10 @@ def extract_h5_features(
             features = [load_features(item) for item in items]
             labels = [np.arange(len(data)) / sampling_rate for data in features]
             # Write the currently processed utterances' data to h5.
-            data = h5f.Data(items, labels, features, check=True)
-            writer.write(data, groupname='features', append=True)
+            writer.write(
+                h5f.Data(items, labels, features, check=True),
+                groupname='features', append=True
+            )
 
 
 def _setup_features_loader(
@@ -90,10 +94,14 @@ def _setup_features_loader(
     return load_features
 
 
-def make_itemfile():
-    """Build a .item file for ABXpy recording mngu0 phone labels."""
-    utterances = get_utterances_list()
-    output_file = os.path.join(ABX_FOLDER, 'mngu0_phones.item')
+def make_itemfile(dataset=None):
+    """Build a .item file for ABXpy recording mngu0 phone labels.
+
+    dataset : optional set name whose utterances to use (str)
+    """
+    utterances = get_utterances_set(dataset)
+    name = 'mngu0_%sphones.item' % ('' if dataset is None else dataset + '_')
+    output_file = os.path.join(ABX_FOLDER, name)
     columns = ['#file', 'onset', 'offset', '#phone', 'context']
     with open(output_file, mode='w') as itemfile:
         itemfile.write(' '.join(columns) + '\n')
@@ -121,35 +129,42 @@ def _phones_to_itemfile(utterance):
     }
 
 
-def make_abx_task():
-    """Build a .abx ABXpy task file associated with mngu0 phones."""
+def make_abx_task(dataset=None):
+    """Build a .abx ABXpy task file associated with mngu0 phones.
+
+    dataset : optional set name whose utterances to use (str)
+    """
     # Build the item file if necessary.
-    item_file = os.path.join(ABX_FOLDER, 'mngu0_phones.item')
+    extension = '' if dataset is None else dataset + '_'
+    item_file = os.path.join(ABX_FOLDER, 'mngu0_%sphones.item' % extension)
     if not os.path.isfile(item_file):
-        make_itemfile()
+        make_itemfile(dataset)
     # Run the ABXpy task module.
-    output = os.path.join(ABX_FOLDER, 'mngu0_task.abx')
+    output = os.path.join(ABX_FOLDER, 'mngu0_%stask.abx' % extension)
     abxpy_task(item_file, output, on='phone', by='context')
 
 
-def abx_from_features(features_filename, n_jobs=1):
+def abx_from_features(features_filename, dataset=None, n_jobs=1):
     """Run the ABXpy pipeline on a set of mngu0 features.
 
     features_file : name of a h5 file of mngu0 features created with
                     the `extract_h5_features` function (str)
+    dataset       : optional set name whose utterances' features are used (str)
     n_jobs        : number of CPU cores to use (positive int, default 1)
     """
     check_type_validity(features_filename, str, 'features_filename')
+    check_type_validity(dataset, (str, type(None)), 'dataset')
     check_positive_int(n_jobs, 'n_jobs')
     # Declare paths to the files used.
-    task_file = os.path.join(ABX_FOLDER, 'mngu0_task.abx')
-    features_file = os.path.join(ABX_FOLDER, features_filename)
+    task_file = 'mngu0_%stask.abx' % ('' if dataset is None else dataset + '_')
+    task_file = os.path.join(ABX_FOLDER, task_file)
+    features_file = os.path.join(ABX_FOLDER, features_filename + '.features')
     output_file = os.path.join(ABX_FOLDER, features_filename + '_abx.csv')
     # Check that the features file exists.
     if not os.path.exists(features_file):
         raise FileNotFoundError("File '%s' does not exist." % features_file)
     # Build the ABX task file if necessary.
     if not os.path.isfile(task_file):
-        make_abx_task()
+        make_abx_task(dataset)
     # Run the ABXpy pipeline.
     abxpy_pipeline(features_file, task_file, output_file, n_jobs)
