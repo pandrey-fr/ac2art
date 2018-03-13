@@ -4,11 +4,9 @@
 
 import tensorflow as tf
 
-from neural_networks.components import build_rmse_readouts
 from neural_networks.components.gaussian import (
     gaussian_density, gaussian_mixture_density
 )
-from neural_networks.components.filters import LowpassFilter
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
@@ -37,7 +35,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
 
     def __init__(
             self, input_shape, n_targets, n_components, layers_config,
-            norm_params=None, filter_kwargs=None, optimizer=None
+            top_filter=None, norm_params=None, optimizer=None
         ):
         """Instanciate the mixture density network.
 
@@ -49,13 +47,10 @@ class MixtureDensityNetwork(MultilayerPerceptron):
                         made of a layer class (or short name), a number
                         of units (or a cutoff frequency for filters) and
                         an optional dict of keyword arguments
+        top_filter    : optional tuple specifying a SignalFilter to use
+                        on top of the network's raw prediction
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
-        input_shape   : shape of the input data fed to the network,
-                        with the number of samples as first component
-        filter_kwargs : dict of keyword arguments setting up a final
-                        low-pass filter (by default, learnable filter
-                        initialized at 20 Hz, with a 200 hz sampling rate)
         optimizer     : tensorflow.train.Optimizer instance (by default,
                         GradientDescentOptimizer with 1e-3 learning rate)
         """
@@ -64,9 +59,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # pylint: disable=super-init-not-called, non-parent-init-called
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, layers_config, norm_params,
-            n_components=n_components, filter_kwargs=filter_kwargs,
-            optimizer=optimizer
+            self, input_shape, n_targets, layers_config, top_filter,
+            norm_params, optimizer=optimizer, n_components=n_components
         )
 
     def _validate_args(self):
@@ -89,10 +83,11 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     @onetimemethod
     def _build_readouts(self):
         """Build wrappers around the produced GMM parameters and likelihood."""
+        # Extract GMM parameters and build associated likelihood readouts.
         self._build_parameters_readouts()
         self._build_likelihood_readouts()
-        self._build_initial_prediction()
-        self._build_prediction_readouts()
+        # Build initial prediction, refine it and build error readouts.
+        super()._build_readouts()
 
     @onetimemethod
     def _build_parameters_readouts(self):
@@ -155,24 +150,12 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         self._readouts['raw_prediction'] = prediction
 
     @onetimemethod
-    def _build_prediction_readouts(self):
-        """Build wrappers improving the prediction and computing its RMSE."""
-        self._layers['readout_filter'] = LowpassFilter(
-            signal=self._readouts['raw_prediction'], **self.filter_kwargs
-        )
-        prediction = self._layers['readout_filter'].output
-        if self.norm_params is not None:
-            prediction *= self.norm_params
-        readouts = build_rmse_readouts(prediction, self._holders['targets'])
-        self._readouts.update(readouts)
-
-    @onetimemethod
     def _build_training_function(self):
         """Build the model's training step method."""
         # Build a function to maximize the network's mean log-likelihood.
         maximize_likelihood = self.optimizer.minimize(
             -1 * self._readouts['mean_log_likelihood'],
-            var_list=self._layer_weights
+            var_list=self._neural_weights
         )
         # Build a function to minimize the prediction error.
         super()._build_training_function()

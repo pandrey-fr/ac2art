@@ -6,8 +6,6 @@ import inspect
 
 import tensorflow as tf
 
-from neural_networks.components import build_rmse_readouts
-from neural_networks.components.filters import LowpassFilter
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.utils import raise_type_error, onetimemethod
@@ -17,8 +15,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     """Class implementing the multilayer perceptron for regression."""
 
     def __init__(
-            self, input_shape, n_targets, layers_config, norm_params=None,
-            filter_kwargs=None, optimizer=None
+            self, input_shape, n_targets, layers_config, top_filter=None,
+            norm_params=None, optimizer=None
         ):
         """Instanciate a multilayer perceptron for regression tasks.
 
@@ -29,18 +27,17 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                         made of a layer class (or short name), a number
                         of units (or a cutoff frequency for filters) and
                         an optional dict of keyword arguments
+        top_filter    : optional tuple specifying a SignalFilter to use
+                        on top of the network's raw prediction
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
-        filter_kwargs : dict of keyword arguments setting up a final
-                        low-pass filter (by default, learnable filter
-                        initialized at 20 Hz, with a 200 hz sampling rate)
         optimizer     : tensorflow.train.Optimizer instance (by default,
                         SGD optimizer with 1e-3 learning rate)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_shape, n_targets, layers_config, norm_params,
-            filter_kwargs=filter_kwargs, optimizer=optimizer
+            input_shape, n_targets, layers_config, top_filter, norm_params,
+            optimizer=optimizer,
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -72,17 +69,6 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """Process the initialization arguments of the instance."""
         # Control arguments common to any DeepNeuralNetwork subclass.
         super()._validate_args()
-        # Control filter kwargs argument.
-        filter_params = {
-            'cutoff':20, 'learnable':True, 'sampling_rate':200, 'window':5
-        }
-        if isinstance(self.filter_kwargs, dict):
-            filter_params.update(self.filter_kwargs)
-        elif self.filter_kwargs is not None:
-            raise_type_error(
-                'filter_kwargs', (dict, type(None)), type(self.filter_kwargs)
-            )
-        self._init_arguments['filter_kwargs'] = filter_params
         # Control optimizer argument.
         if self.optimizer is None:
             self._init_arguments['optimizer'] = (
@@ -97,36 +83,32 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     @onetimemethod
     def _build_readout_layer(self):
         """Build the readout layer of the multilayer perceptron."""
+        # Build the readout layer.
         self._layers['readout_layer'] = DenseLayer(
             self._top_layer.output, self.n_targets, 'identity'
         )
-        self._layers['readout_filter'] = LowpassFilter(
-            signal=self._layers['readout_layer'].output, **self.filter_kwargs
-        )
 
     @onetimemethod
-    def _build_readouts(self):
-        """Build wrappers on top of the network's readout layer."""
+    def _build_initial_prediction(self):
+        """Build the network's initial prediction.
+
+        For the basic MLP, this is simply the readout layer's output.
+        This method should be overriden by subclasses to define more
+        complex predictions.
+        """
         self._readouts['raw_prediction'] = self._layers['readout_layer'].output
-        prediction = self._layers['readout_filter'].output
-        if self.norm_params is not None:
-            prediction *= self.norm_params
-        self._readouts.update(
-            build_rmse_readouts(prediction, self._holders['targets'])
-        )
 
     @onetimemethod
     def _build_training_function(self):
         """Build the train step function of the network."""
-        # Build a function optimizing the layer's weights.
+        # Build a function optimizing the neural layers' weights.
         fit_weights = self.optimizer.minimize(
-            self._readouts['rmse'], var_list=self._layer_weights
+            self._readouts['rmse'], var_list=self._neural_weights
         )
-        # If the readout filter is learnable, optimize its cutoff frequency.
-        filt = self._layers['readout_filter']
-        if filt.learnable:
-            fit_filter = filt.get_cutoff_training_function(
-                self._readouts['rmse'], learning_rate=1
+        # If appropriate, build a function optimizing the filters' cutoff.
+        if self._filter_cutoffs:
+            fit_filter = tf.train.GradientDescentOptimizer(.9).minimize(
+                self._readouts['rmse'], var_list=self._filter_cutoffs
             )
             self._training_function = [fit_weights, fit_filter]
         else:

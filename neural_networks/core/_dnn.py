@@ -8,6 +8,7 @@ from collections import OrderedDict
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.components import build_rmse_readouts
 from neural_networks.components.filters import LowpassFilter, SignalFilter
 from neural_networks.components.layers import DenseLayer, NeuralLayer
 from neural_networks.components.rnn import (
@@ -116,8 +117,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     """
 
     def __init__(
-            self, input_shape, n_targets, layers_config, norm_params=None,
-            **kwargs
+            self, input_shape, n_targets, layers_config,
+            top_filter=None, norm_params=None, **kwargs
         ):
         """Initialize the neural network.
 
@@ -129,13 +130,16 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                         made of a layer class (or short name), a number
                         of units (or a cutoff frequency for filters) and
                         an optional dict of keyword arguments
+        top_filter    : optional tuple specifying a SignalFilter to use
+                        on top of the network's raw prediction
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         """
         # Record and process initialization arguments.
         self._init_arguments = {
             'input_shape': input_shape, 'n_targets': n_targets,
-            'layers_config': layers_config, 'norm_params': norm_params
+            'layers_config': layers_config, 'top_filter': top_filter,
+            'norm_params': norm_params
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -192,20 +196,22 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         }
 
     @property
-    def _layer_weights(self):
-        """Return the weight and biases tensors of all network layers."""
-        def get_weights(layer):
-            """Return the weight variables of a given layer."""
-            if isinstance(layer, NeuralLayer):
-                return (
-                    (layer.weight, layer.bias) if layer.bias else layer.weight
-                )
-            elif isinstance(layer, AbstractRNN):
-                return layer.weights
-            raise TypeError("Unknown layer class: '%s'." % type(layer))
+    def _neural_weights(self):
+        """Return the weight and biases tensors of all neural layers."""
         return [
-            get_weights(layer) for layer in self._layers.values()
-            if not isinstance(layer, SignalFilter)
+            layer.weights if isinstance(layer, AbstractRNN) else (
+                (layer.weight, layer.bias) if layer.bias else layer.weight
+            )
+            for layer in self._layers.values()
+            if isinstance(layer, (AbstractRNN, NeuralLayer))
+        ]
+
+    @property
+    def _filter_cutoffs(self):
+        """Return the cutoff tensors of all learnable filter layers."""
+        return [
+            layer.cutoff for layer in self._layers.values()
+            if isinstance(layer, SignalFilter) and layer.learnable
         ]
 
     def _adjust_init_arguments_for_saving(self):
@@ -259,19 +265,12 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         # Validate the model's layers configuration.
         check_type_validity(self.layers_config, list, 'layers_config')
         for i, config in enumerate(self.layers_config):
-            # Check that the configuration is a three-elements tuple.
-            if not isinstance(config, tuple):
-                raise TypeError("'layers_config' elements should be tuples.")
-            if len(config) == 2:
-                self.layers_config[i] = config = (*config, {})
-            elif len(config) != 3:
-                raise TypeError("Wrong 'layers_config' element tuple length.")
-            # Check sub-elements type validity.
-            check_type_validity(config[0], (str, type), 'layer class')
-            check_type_validity(
-                config[1], (int, list, tuple), 'layer config primary parameter'
+            self.layers_config[i] = validate_layer_config(config)
+        # Validate the model's optional top layer configuration.
+        if self.top_filter is not None:
+            self._init_arguments['top_filter'] = (
+                validate_layer_config(self.top_filter)
             )
-            check_type_validity(config[2], dict, 'layer config kwargs')
         # Validate the model's number of targets.
         check_positive_int(self.n_targets, 'n_targets')
         # Validate the model's normalization parameters.
@@ -329,18 +328,53 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def _build_readout_layer(self):
         """Build the network's readout layer.
 
-        This method should update the `_layers_stack` list attribute.
+        This method should add a 'readout_layer' element
+        on top of the `_layers` OrderedDict attribute.
         """
         return NotImplemented
+
+    @onetimemethod
+    def _build_readouts(self):
+        """Build wrappers on top of the network's readout layer."""
+        self._build_initial_prediction()
+        self._build_refined_prediction()
+        self._build_error_readouts()
 
     @abstractmethod
     @onetimemethod
-    def _build_readouts(self):
-        """Build wrappers on top of the network's readout layer.
+    def _build_initial_prediction(self):
+        """Build the network's initial prediction.
 
-        This method should update the `_readouts` dict attribute.
+        This method should add a 'raw_prediction'
+        Tensor to the `_readouts` dict attribute.
         """
         return NotImplemented
+
+    @onetimemethod
+    def _build_refined_prediction(self):
+        """Refine the network's initial prediction."""
+        prediction = self._readouts['raw_prediction']
+        # Optionally de-normalize the initial prediction.
+        if self.norm_params is not None:
+            prediction *= self.norm_params
+        # Optionally filter the prediction.
+        if self.top_filter is not None:
+            filter_class, cutoff, kwargs = self.top_filter
+            filter_class = get_layer_class(filter_class)
+            self._layers['top_filter'] = (
+                filter_class(prediction, cutoff, **kwargs)
+            )
+            prediction = self._layers['top_filter'].output
+        # Assign the refined prediction to the _readouts attribute.
+        self._readouts['prediction'] = prediction
+
+    @onetimemethod
+    def _build_error_readouts(self):
+        """Build error readouts of the network's prediction."""
+        readouts = build_rmse_readouts(
+            self._readouts['prediction'], self._holders['targets']
+        )
+        self._readouts.update(readouts)
 
     @abstractmethod
     @onetimemethod
@@ -369,6 +403,31 @@ def get_layer_class(layer_class):
         return layer_class
     else:
         raise TypeError("'layer_class' should be a str or an adequate class.")
+
+
+def validate_layer_config(config):
+    """Validate that a given object is fit as a layer's configuration.
+
+    Return the validated object, which may have been extended with an
+    empty dict.
+    """
+    # Check that the configuration is a three-elements tuple.
+    if not isinstance(config, tuple):
+        raise TypeError("Layer configuration elements should be tuples.")
+    if len(config) == 2:
+        config = (*config, {})
+    elif len(config) != 3:
+        raise TypeError(
+            "Wrong layer configuration tuple length: should be 2 or 3."
+        )
+    # Check sub-elements types.
+    check_type_validity(config[0], (str, type), 'layer class')
+    check_type_validity(
+        config[1], (int, list, tuple), 'layer primary parameter'
+    )
+    check_type_validity(config[2], dict, 'layer config kwargs')
+    # Return the config tuple.
+    return config
 
 
 def load_dumped_model(filename, model=None):
