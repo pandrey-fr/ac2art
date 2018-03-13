@@ -32,7 +32,9 @@ CONSTANTS = __load_constants()
 
 def check_batch_type(valid_type, **kwargs):
     """Check that a batch of keyword arguments are of a given type."""
-    invalid = [name for name, arg in kwargs if not isinstance(arg, valid_type)]
+    invalid = [
+        name for name, arg in kwargs.items() if not isinstance(arg, valid_type)
+    ]
     if invalid:
         raise TypeError(
             "Invalid argument%s: '%s'. Should be of type %s."
