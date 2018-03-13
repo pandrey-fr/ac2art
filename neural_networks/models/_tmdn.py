@@ -55,7 +55,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         optimizer     : tensorflow.train.Optimizer instance (by default,
-                        GradientDescentOptimizer with 1e-3 learning rate)
+                        Adam optimizer with 1e-3 learning rate)
         delta_window  : half-size of the time window used to compute dynamic
                         features out of static ones (int, default 5)
         """

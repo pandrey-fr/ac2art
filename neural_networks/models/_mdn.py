@@ -52,7 +52,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         optimizer     : tensorflow.train.Optimizer instance (by default,
-                        GradientDescentOptimizer with 1e-3 learning rate)
+                        Adam optimizer with 1e-3 learning rate)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Use the basic API init instead of that of the direct parent.

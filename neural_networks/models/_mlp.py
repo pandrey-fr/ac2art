@@ -32,7 +32,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         optimizer     : tensorflow.train.Optimizer instance (by default,
-                        SGD optimizer with 1e-3 learning rate)
+                        Adam optimizer with 1e-3 learning rate)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
@@ -58,7 +58,12 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                 optimizer.__module__ + '.' + optimizer.__class__.__name__
             ),
             'init_kwargs': {
-                key: optimizer.__dict__['_' + key]
+                key: (
+                    optimizer.__dict__['_' + key] if key != 'learning_rate'
+                    else optimizer.__dict__.get(
+                        '_learning_rate', optimizer.__dict__.get('_lr', .001)
+                    )
+                )
                 for key in inspect.signature(optimizer.__class__).parameters
             }
         }
@@ -72,7 +77,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Control optimizer argument.
         if self.optimizer is None:
             self._init_arguments['optimizer'] = (
-                tf.train.GradientDescentOptimizer(1e-3)
+                tf.train.AdamOptimizer(1e-3)
             )
         elif not isinstance(self.optimizer, tf.train.Optimizer):
             raise_type_error(
