@@ -106,7 +106,7 @@ def assign_rnn_weights(container, weights, session):
     # Check input weights' conformity.
     conform = (
         isinstance(weights, list)
-        and len(weights) != len(container)
+        and len(weights) == len(container)
         and all(
             isinstance(weight, tuple) and len(weight) == 2
             and isinstance(weight[0], np.ndarray)
@@ -300,14 +300,16 @@ class BidirectionalRNN(AbstractRNN):
     def set_values(self, weights, session):
         """Set the recurrent neural network's weights to given values.
 
-        weights : a list of tuples containing kernel and bias weights
-                  of the network's cells, each as a numpy.ndarray
+        weights : a tuple containing two lists of tuples containing kernel and
+                  bias weights of the network's cells, each as a numpy.ndarray
         session : a tensorflow.Session in the context of which
                   the assignment is to be performed
         """
         # Unpack forward and backward weights.
         if not isinstance(weights, tuple) and len(weights) == 2:
-            raise TypeError("Invalid 'weights' argument: should be a tuple.")
+            raise TypeError(
+                "Invalid 'weights' argument: should be a two-elements tuple."
+            )
         forward_weights, backward_weights = weights
         # Make a safe save of the current forward weights.
         current_forward = self.get_values(session)[0]
