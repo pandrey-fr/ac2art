@@ -7,6 +7,7 @@ import os
 import numpy as np
 
 from data.commons.enhance import add_dynamic_features, build_context_windows
+from data.mngu0.raw import get_utterances_list
 from data.utils import CONSTANTS
 
 
@@ -167,11 +168,13 @@ def load_utterance(name, **kwargs):
     return acoustic, ema
 
 
-def load_utterance_list(set_name):
-    """Load the list of utterances from a given set.
+def get_utterances_set(set_name):
+    """Get the list of utterances from a given set.
 
     set_name : name of the set, e.g. 'train', 'validation' or 'test'
     """
+    if set_name is None:
+        return get_utterances_list()
     with open(os.path.join(FOLDER, 'filesets', set_name + '.txt')) as file:
         return [row.strip('\n') for row in file]
 
@@ -188,7 +191,7 @@ def load_dataset(set_name, concatenate=False, **kwargs):
     The latter can be seen and changed using `see_loading_setup`
     and `change_loading_setup`, all from the `data.mngu0.load` module.
     """
-    fileset = load_utterance_list(set_name)
+    fileset = get_utterances_set(set_name)
     dataset = np.array([load_utterance(name, **kwargs) for name in fileset])
     acoustic = np.array([utterance[0] for utterance in dataset])
     ema = np.array([utterance[1] for utterance in dataset])

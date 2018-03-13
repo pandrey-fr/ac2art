@@ -4,5 +4,5 @@
 
 from ._load import (
     get_normalization_parameters, change_loading_setup, see_loading_setup,
-    load_acoustic, load_ema, load_utterance, load_utterance_list, load_dataset
+    load_acoustic, load_ema, load_utterance, get_utterances_set, load_dataset
 )
