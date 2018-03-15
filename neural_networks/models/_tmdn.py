@@ -36,50 +36,16 @@ class TrajectoryMDN(MixtureDensityNetwork):
     Density Network for the Acoustic-Articulatory Inversion Mapping.
     """
 
-    def __init__(
-            self, input_shape, n_targets, n_components, layers_config,
-            top_filter=None, norm_params=None, optimizer=None, delta_window=5
-        ):
-        """Instanciate the trajectory mixture density network.
-
-        input_shape   : shape of the data fed to the input layer
-        n_targets     : number of real-valued targets to predict,
-                        comprising delta and deltadelta features.
-        n_components  : number of mixture components to model
-        layers_config : list of tuples specifying a layer configuration,
-                        made of a layer class (or short name), a number
-                        of units (or a cutoff frequency for filters) and
-                        an optional dict of keyword arguments
-        top_filter    : optional tuple specifying a SignalFilter to use
-                        on top of the network's raw prediction
-        norm_params   : optional normalization parameters of the targets
-                        (np.ndarray)
-        optimizer     : tensorflow.train.Optimizer instance (by default,
-                        Adam optimizer with 1e-3 learning rate)
-        delta_window  : half-size of the time window used to compute dynamic
-                        features out of static ones (int, default 5)
-        """
-        # Arguments serve modularity; pylint: disable=too-many-arguments
-        # Use the basic API init instead of that of the direct parent.
-        # pylint: disable=super-init-not-called, non-parent-init-called
-        self.n_parameters = None
-        DeepNeuralNetwork.__init__(
-            self, input_shape, n_targets, layers_config, top_filter,
-            norm_params, optimizer=optimizer, n_components=n_components,
-            delta_window=delta_window
-        )
-
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any mixture density network.
         super()._validate_args()
-        # Control n_targets and delta_window arguments.
+        # Control n_targets argument.
         if self.n_targets % 3:
             raise ValueError(
                 "'n_targets' must be a multiple of 3, comprising "
                 + "first and second order dynamic features count."
             )
-        check_positive_int(self.delta_window, 'delta_window')
         # Override the parent class's number of parameters.
         self.n_parameters = self.n_components * (4 + self.n_targets)
 
@@ -126,7 +92,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         feed_dict = super()._get_feed_dict(input_data, targets, keep_prob)
         if fit == 'trajectory':
             weights = build_dynamic_weights_matrix(
-                len(input_data), self.delta_window, complete=True
+                len(input_data), window=5, complete=True
             )
             feed_dict[self._holders['_delta_weights']] = weights
         return feed_dict
