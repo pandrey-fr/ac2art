@@ -300,24 +300,20 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         input_tensor = self._holders['input']
         layers_count = {}
         # Iteratively build the layers.
-        for name, n_units, kwargs in self.layers_config.copy():
+        for name, n_units, kwargs in self.layers_config:
             # Get the layer's class and update the layers counter.
             layer_class = get_layer_class(name)
             layer_name = kwargs.pop(
                 'name', name + '_%s' % layers_count.setdefault(name, 0)
             )
-            # Instanciate the layer. Pre-handle some arguments if needed.
+            # Handle dropout and avoid RNN scope issues, if relevant.
             if issubclass(layer_class, (DenseLayer, AbstractRNN)):
-                # Avoid scope issues with RNN in tensorflow.
+                kwargs = kwargs.copy()
                 if issubclass(layer_class, AbstractRNN):
                     kwargs['name'] = layer_name + '_%s' % id(self)
-                # Handle dropout parameters.
-                keep_prob = kwargs.pop('keep_prob', self._holders['keep_prob'])
-                layer = layer_class(
-                    input_tensor, n_units, keep_prob=keep_prob, **kwargs
-                )
-            else:
-                layer = layer_class(input_tensor, n_units, **kwargs)
+                kwargs.setdefault('keep_prob', self._holders['keep_prob'])
+            # Instanciate the layer.
+            layer = layer_class(input_tensor, n_units, **kwargs)
             # Add the layer to the stack and use its output as next input.
             self._layers[layer_name] = layer
             layers_count[name] += 1
