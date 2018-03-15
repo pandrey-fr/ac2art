@@ -9,6 +9,7 @@ import time
 import numpy as np
 import resampy
 
+from data.commons.enhance import add_dynamic_features
 from data.mngu0.raw import (
     get_utterances_list, load_ema, load_phone_labels, load_wav
 )
@@ -60,12 +61,14 @@ DOC_EXTRACT_DETAILS = """
 
 
 DOC_EXTRACT_ARGUMENTS = """
-    n_coeff           : number of coefficients to compute for each
-                        representation of the audio data - either
-                        a single int or a tuple of ints (default 40)
     audio_forms       : optional list of representations of the audio data
                         to produce, among {'energy', 'lsf', 'lpc', 'mfcc'}
                         (list of str, default None implying all of them)
+    n_coeff           : number of static coefficients to compute for each
+                        representation of the audio data (int, default 12)
+                        Note : dynamic features as well as static and
+                        dynamic energy will be included as well with
+                        each of the audio forms.
     articulators_list : optional list of raw EMA data columns to keep
                         (default None, implying twelve, detailed below)
     ema_sampling_rate : sample rate of the EMA data to use, in Hz
@@ -82,7 +85,7 @@ DOC_EXTRACT_ARGUMENTS = """
 
 
 def extract_all_utterances(
-        n_coeff=40, audio_forms=None, articulators_list=None,
+        audio_forms=None, n_coeff=12, articulators_list=None,
         ema_sampling_rate=200, audio_frames_size=200
     ):
     """Extract acoustic and articulatory data of each mngu0 utterance.
@@ -96,13 +99,13 @@ def extract_all_utterances(
     """
     # Check arguments validity, assign default values and build output folders.
     audio_forms, articulators_list = scan_extractation_parameters(
-        n_coeff, audio_forms, articulators_list,
+        audio_forms, n_coeff, articulators_list,
         ema_sampling_rate, audio_frames_size
     )
     # Iterate over all mngu0 utterances.
     for utterance in get_utterances_list():
         _extract_utterance_data(
-            utterance, n_coeff, audio_forms, articulators_list,
+            utterance, audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_size
         )
         end_time = time.asctime().split(' ')[-2]
@@ -116,7 +119,7 @@ extract_all_utterances.__doc__ = extract_all_utterances.__doc__.format(
 
 
 def extract_utterance_data(
-        utterance, n_coeff=40, audio_forms=None, articulators_list=None,
+        utterance, audio_forms=None, n_coeff=12, articulators_list=None,
         ema_sampling_rate=200, audio_frames_size=200
     ):
     """Extract acoustic and articulatory data of a given mngu0 utterance.
@@ -132,12 +135,12 @@ def extract_utterance_data(
     # Check arguments validity, assign default values and build output folders.
     check_type_validity(utterance, str, 'utterance')
     audio_forms, articulators_list = scan_extractation_parameters(
-        n_coeff, audio_forms, articulators_list,
+        audio_forms, n_coeff, articulators_list,
         ema_sampling_rate, audio_frames_size
     )
     # Conduct the actual data extractation.
     _extract_utterance_data(
-        utterance, n_coeff, audio_forms, articulators_list,
+        utterance, audio_forms, n_coeff, articulators_list,
         ema_sampling_rate, audio_frames_size
     )
 
@@ -148,7 +151,7 @@ extract_utterance_data.__doc__ = extract_utterance_data.__doc__.format(
 
 
 def _extract_utterance_data(
-        utterance, n_coeff, audio_forms, articulators_list,
+        utterance, audio_forms, n_coeff, articulators_list,
         ema_sampling_rate, audio_frames_size
     ):
     """Extract acoustic and articulatory data of a given mngu0 utterance.
@@ -173,18 +176,17 @@ def _extract_utterance_data(
         ema = resampy.resample(
             ema, sr_orig=200, sr_new=ema_sampling_rate, axis=0
         )
-    # Trim silences off the EMA data and save it to disk.
-    path = os.path.join(NEW_FOLDER, 'ema', utterance + '_ema.npy')
-    np.save(path, ema[start_frame:end_frame])
+    # Add dynamic features and trim edge silences from EMA data. Save it.
+    ema = add_dynamic_features(ema)[start_frame:end_frame]
+    np.save(os.path.join(NEW_FOLDER, 'ema', utterance + '_ema.npy'), ema)
     # Load the audio waveform data, structuring it into frames.
     wav = load_wav(
         utterance, audio_frames_size, hop_time=int(1000 / ema_sampling_rate)
     )
-    # Compute each representation of the audio, trim its silences and save it.
+    # Compute each set of audio features, trim its edge silences and save it.
     for name in audio_forms:
         audio = (
-            getattr(wav, 'get_' + name)(n_coeff) if name != 'energy'
-            else wav.get_rms_energy()
+            getattr(wav, 'get_' + name)(n_coeff, static_only=False)
         )
         audio = audio[start_frame:end_frame]
         path = os.path.join(NEW_FOLDER, name, utterance + '_%s.npy' % name)
@@ -192,7 +194,7 @@ def _extract_utterance_data(
 
 
 def scan_extractation_parameters(
-        n_coeff, audio_forms, articulators_list, ema_sampling_rate,
+        audio_forms, n_coeff, articulators_list, ema_sampling_rate,
         audio_frames_size
     ):
     """Check the validity of arguments provided to process a mngu0 utterance.
@@ -211,11 +213,16 @@ def scan_extractation_parameters(
         raise ValueError("'ema_sampling_rate' must be a divisor of 1000.")
     check_positive_int(audio_frames_size, 'audio_frames_size')
     # Check audio_forms argument validity.
-    _audio_forms = ['energy', 'lpc', 'lsf', 'mfcc']
+    _audio_forms = ['lpc', 'lsf', 'mfcc']
     if audio_forms is None:
         audio_forms = _audio_forms
     else:
-        check_type_validity(audio_forms, list, 'audio_forms')
+        if isinstance(audio_forms, str):
+            audio_forms = [audio_forms]
+        elif isinstance(audio_forms, tuple):
+            audio_forms = list(audio_forms)
+        else:
+            check_type_validity(audio_forms, list, 'audio_forms')
         invalid = [name for name in audio_forms if name not in _audio_forms]
         if invalid:
             raise ValueError("Unknown audio representation(s): %s." % invalid)
