@@ -9,6 +9,7 @@ import scipy.linalg
 import scipy.signal
 import librosa
 
+from data.commons.enhance import add_dynamic_features
 from data.utils import check_type_validity
 
 
@@ -62,14 +63,18 @@ class Wav:
         hop_size = int(self.sampling_rate * hop_time / 1000)
         self.frames = np.array([
             self.signal[i:i + frame_size]
-            for i in range(0, len(self.signal) - frame_size, hop_size)
+            for i in range(0, len(self.signal) + 1 - frame_size, hop_size)
         ])
 
-    def get_mfcc(self, n_coeff=12):
+    def get_mfcc(self, n_coeff=12, static_only=False):
         """Return Mel-frequency cepstral coefficients for each audio frame.
 
-        n_coeff    : number of MFCC to return for each frame
-                     (positive int, default 12, maximum 40)
+        n_coeff     : number of MFCC to return for each frame
+                      (positive int, default 12, maximum 40)
+        static_only : whether to return the sole static MFCC features
+                      instead of adding up the energy and compute the
+                      delta and deltadelta MFCC and energy features
+                      (bool, default False)
 
         This implementation is based on that of 'librosa.features.mfcc',
         which it adapts so as to pass some specific options when building
@@ -82,41 +87,66 @@ class Wav:
         # Build a spectrogram.
         n_frames, frames_size = self.frames.shape
         hop_size = int(len(self.signal) / n_frames)
-        spectrogram = np.square(
+        spectrogram = np.square(np.abs(  # Use abs to get rid of complex part.
             librosa.stft(self.signal, frames_size, hop_size, center=False)
-        )
+        ))
         # Adjust the spectrogram to the mel scale.
         melfilt = librosa.filters.mel(self.sampling_rate, frames_size, 40)
         melspectrogram = np.dot(melfilt, spectrogram)
         # Compute the mel log powers. Return its discrete cosine transform.
         mels = librosa.power_to_db(melspectrogram)
         discrete_cosine_transform = librosa.filters.dct(n_coeff, len(mels))
-        return np.dot(discrete_cosine_transform, mels).T
+        mfcc = np.dot(discrete_cosine_transform, mels).T
+        # Optionally return the sole static mfcc coefficients.
+        if static_only:
+            return mfcc
+        # Otherwise, add the energy and the dynamic features to the return.
+        return add_dynamic_features(
+            np.concatenate([mfcc, self.get_rms_energy()], axis=1)
+        )
 
     def get_rms_energy(self):
         """Return root mean squared energy for each audio frame."""
         return np.sqrt(np.mean(np.square(self.frames), axis=1, keepdims=True))
 
-    def get_lpc(self, n_coeff=20):
+    def get_lpc(self, n_coeff=20, static_only=False):
         """Return linear predictive coding coefficients for each audio frame.
 
-        n_coeff    : number of LPC coefficients to return for each frame
-                     (positive int, default 20)
+        n_coeff     : number of LPC coefficients to return for each frame
+                      (positive int, default 20)
+        static_only : whether to return the sole static LPC features
+                      instead of adding up the energy and compute the
+                      delta and deltadelta LPC and energy features
+                      (bool, default False)
         """
-        return linear_predictive_coding(self.frames, n_coeff)
+        lpc = linear_predictive_coding(self.frames, n_coeff)
+        if static_only:
+            return lpc
+        return add_dynamic_features(
+            np.concatenate([lpc, self.get_rms_energy()], axis=1)
+        )
 
-    def get_lsf(self, n_coeff=20):
+    def get_lsf(self, n_coeff=20, static_only=False):
         """Return line spectral frequencies coefficients for each audio frame.
 
-        n_coeff    : number of LPC coefficients to return for each frame
-                     (positive int, default 20)
+        n_coeff     : number of LPC coefficients to return for each frame
+                      (positive int, default 20)
+        static_only : whether to return the sole static LSF features
+                      instead of adding up the energy and compute the
+                      delta and deltadelta LSF and energy features
+                      (bool, default False)
         """
         # Compute n + 1 LPC coefficients and convert them to LSF.
-        lpc, _ = self.get_lpc(n_coeff + 1)
+        lpc, _ = self.get_lpc(n_coeff + 1, static_only=True)
         lsf = lpc_to_lsf(lpc)
-        # Replace NaN values with zero and return the computed coefficients.
+        # Replace NaN values with zero.
         lsf[np.isnan(lsf)] = 0
-        return lsf
+        # Optionally add energy and dynamic features before returning.
+        if static_only:
+            return lpc
+        return add_dynamic_features(
+            np.concatenate([lsf, self.get_rms_energy()], axis=1)
+        )
 
 
 def linear_predictive_coding(frames, n_coeff=20):
