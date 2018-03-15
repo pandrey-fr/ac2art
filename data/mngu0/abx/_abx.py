@@ -20,7 +20,7 @@ ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
 
 def extract_h5_features(
         audio_features=None, ema_features=None, output_name='mngu0_features',
-        use_dynamic='both', dynamic_window=5, sampling_rate=200, dataset=None
+        use_dynamic='both', dynamic_window=5, sampling_rate=200
     ):
     """Build an h5 file recording audio features associated with mngu0 data.
 
@@ -33,7 +33,6 @@ def extract_h5_features(
     dynamic_window : half-size of the window used to compute dynamic features
                      (int, default 5, set to 0 to use static features only)
     sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
-    dataset        : optional name of a set whose utterances to use (str)
     """
     # Arguments serve modularity; pylint: disable=too-many-arguments
     # Check that the destination file does not exist.
@@ -45,7 +44,7 @@ def extract_h5_features(
         audio_features, ema_features, use_dynamic, dynamic_window
     )
     # Load the list of utterances and process them iteratively.
-    utterances = get_utterances_set(dataset)
+    utterances = get_utterances_set()
     with h5f.Writer(output_file) as writer:
         for i in range(0, len(utterances), 100):
             # Load or compute the utterances list, features and time labels.
