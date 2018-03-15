@@ -233,3 +233,30 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Evaluate the selected metric.
         feed_dict = self._get_feed_dict(input_data, targets, fit=score)
         return metric.eval(feed_dict, self.session)
+
+
+class FullVarianceMDN(MixtureDensityNetwork):
+    """Class for mixture density networks with full variance in tensorflow.
+
+    This implementation of the mixture density network differs from
+    the base MixtureDensityNetwork class in that it produces different
+    variance parameters for the various dimensions of the target. The
+    covariance matrix of the modeled gaussian distributions is thus
+    still diagonal, but with different values along its diagonal.
+    """
+
+    def _validate_args(self):
+        """Process the initialization arguments of the instance."""
+        # Control arguments common the any mixture density network.
+        super()._validate_args()
+        # Override the parent class's number of parameters.
+        self.n_parameters = self.n_components * (1 + 2 * self.n_targets)
+
+    @onetimemethod
+    def _build_parameters_readouts(self):
+        """Build wrappers reading the produced density mixture parameters."""
+        super()._build_parameters_readouts()
+        self._readouts['std_deviations'] = tf.reshape(
+            self._readouts['std_deviations'],
+            (-1, self.n_components, self.n_targets)
+        )
