@@ -280,7 +280,7 @@ class BidirectionalRNN(AbstractRNN):
             ]
         self._forward_weights = get_cells_weights(self.forward_cells)
         self._backward_weights = get_cells_weights(self.backward_cells)
-        self.weights = [self._forward_weights, self._backward_weights]
+        self.weights = (self._forward_weights, self._backward_weights)
 
     @property
     def configuration(self):
