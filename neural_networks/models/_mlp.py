@@ -8,6 +8,7 @@ import tensorflow as tf
 
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
+from neural_networks.tf_utils import minimize_safely
 from neural_networks.utils import raise_type_error, onetimemethod
 
 
@@ -107,8 +108,9 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     def _build_training_function(self):
         """Build the train step function of the network."""
         # Build a function optimizing the neural layers' weights.
-        fit_weights = self.optimizer.minimize(
-            self._readouts['rmse'], var_list=self._neural_weights
+        fit_weights = minimize_safely(
+            self.optimizer, loss=self._readouts['rmse'],
+            var_list=self._neural_weights, reduce_fn=tf.reduce_max
         )
         # If appropriate, build a function optimizing the filters' cutoff.
         if self._filter_cutoffs:

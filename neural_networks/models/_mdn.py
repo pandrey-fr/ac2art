@@ -10,6 +10,7 @@ from neural_networks.components.gaussian import (
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
+from neural_networks.tf_utils import minimize_safely
 from neural_networks.utils import (
     check_type_validity, check_positive_int, onetimemethod
 )
@@ -101,8 +102,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             raw_parameters[:, self.n_components:self.n_components + n_means],
             (-1, self.n_components, self.n_targets)
         )
-        self._readouts['std_deviations'] = tf.exp(
-            raw_parameters[:, self.n_components + n_means:]
+        self._readouts['std_deviations'] = tf.expand_dims(
+            tf.exp(raw_parameters[:, self.n_components + n_means:]), 2
         )
 
     @onetimemethod
@@ -134,7 +135,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Gather parameters for better code readability.
         priors = tf.expand_dims(self._readouts['priors'], 2)
         means = self._readouts['means']
-        stds = tf.expand_dims(self._readouts['std_deviations'], 2)
+        stds = self._readouts['std_deviations']
         # Compute the mean of the components' means, weighted by priors.
         # Use this as an initial prediction.
         initial = tf.expand_dims(tf.reduce_sum(priors * means, axis=1), 1)
@@ -153,14 +154,10 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     def _build_training_function(self):
         """Build the model's training step method."""
         # Build a function to maximize the network's mean log-likelihood.
-        likelihood_gradients = self.optimizer.compute_gradients(
-            loss=-1 * self._readouts['mean_log_likelihood'],
-            var_list=self._neural_weights
+        maximize_likelihood = minimize_safely(
+            self.optimizer, loss=-1 * self._readouts['mean_log_likelihood'],
+            var_list=self._neural_weights, reduce_fn=tf.reduce_max
         )
-        maximize_likelihood = self.optimizer.apply_gradients([
-            (tf.where(tf.is_nan(grad), tf.ones_like(grad), grad), var)
-            for grad, var in likelihood_gradients
-        ])
         # Build a function to minimize the prediction error.
         super()._build_training_function()
         minimize_rmse = self._training_function
