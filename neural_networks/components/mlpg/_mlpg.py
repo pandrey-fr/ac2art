@@ -59,12 +59,12 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     means = tf.concat([
         means[:, i * n_targets:(i + 1) * n_targets] for i in range(3)
     ], axis=0)
-    stds = tf.matrix_diag(stds)
+    inv_stds = tf.matrix_diag(1 / tf.square(stds))
     # Solve the system using cholesky decomposition of the left term matrix.
-    weighted_stds = tf.matmul(tf.matrix_transpose(weights), stds)
+    weighted_inv_stds = tf.matmul(tf.matrix_transpose(weights), inv_stds)
     static_features = tf.cholesky_solve(
-        tf.cholesky(tf.matmul(weighted_stds, weights)),
-        tf.matmul(weighted_stds, means)
+        tf.cholesky(tf.matmul(weighted_inv_stds, weights)),
+        tf.matmul(weighted_inv_stds, means)
     )
     # Add dynamic features to the predicted static ones and return them.
     features = tf.matmul(weights, static_features)
