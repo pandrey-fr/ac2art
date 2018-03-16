@@ -93,7 +93,9 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     @onetimemethod
     def _build_parameters_readouts(self):
         """Build wrappers reading the produced density mixture parameters."""
-        raw_parameters = self._layers['readout_layer'].output
+        raw_parameters = tf.cast(
+            self._layers['readout_layer'].output, tf.float64
+        )
         self._readouts['priors'] = (
             tf.nn.softmax(raw_parameters[:, :self.n_components])
         )
@@ -115,12 +117,12 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             else self._holders['targets'] / self.norm_params
         )
         self._readouts['likelihood'] = gaussian_mixture_density(
-            targets, self._readouts['priors'],
+            tf.cast(targets, tf.float64), self._readouts['priors'],
             self._readouts['means'], self._readouts['std_deviations']
         )
         # Define the error function and training step optimization program.
         self._readouts['mean_log_likelihood'] = (
-            tf.reduce_mean(tf.log(self._readouts['likelihood'] + 1e-30))
+            tf.reduce_mean(tf.log(self._readouts['likelihood'] + 1e-62))
         )
 
     @onetimemethod
@@ -148,7 +150,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Compute the mean of the component's means, weighted by occupancy.
         # Use this as the targets' prediction.
         prediction = tf.reduce_sum(occupancy * means, axis=1)
-        self._readouts['raw_prediction'] = prediction
+        self._readouts['raw_prediction'] = tf.cast(prediction, tf.float32)
 
     @onetimemethod
     def _build_training_function(self):

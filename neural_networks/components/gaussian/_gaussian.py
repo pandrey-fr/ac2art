@@ -21,9 +21,10 @@ def gaussian_density(data, mean, std):
     standard deviation value common to each dimension of the variables
     is used.
     """
+    pi = np.float64(np.pi) if data.dtype is tf.float64 else np.pi
     return (
         tf.exp(-1 * tf.square(data - mean) / (2 * tf.square(std)))
-        / (tf.sqrt(2 * np.pi) * std)
+        / (tf.sqrt(2 * pi) * std)
     )
 
 
