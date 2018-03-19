@@ -6,6 +6,7 @@ import inspect
 
 import tensorflow as tf
 
+from neural_networks.components import build_rmse_readouts
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.tf_utils import minimize_safely
@@ -105,6 +106,14 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         self._readouts['raw_prediction'] = self._layers['readout_layer'].output
 
     @onetimemethod
+    def _build_error_readouts(self):
+        """Build error readouts of the network's prediction."""
+        readouts = build_rmse_readouts(
+            self._readouts['prediction'], self._holders['targets']
+        )
+        self._readouts.update(readouts)
+
+    @onetimemethod
     def _build_training_function(self):
         """Build the train step function of the network."""
         # Build a function optimizing the neural layers' weights.
@@ -120,39 +129,6 @@ class MultilayerPerceptron(DeepNeuralNetwork):
             self._training_function = [fit_weights, fit_filter]
         else:
             self._training_function = fit_weights
-
-    def _get_feed_dict(self, input_data, targets=None, keep_prob=1):
-        """Build a tensorflow feeding dictionary out of provided arguments.
-
-        input_data : data to feed to the network
-        targets    : optional true targets associated with the inputs
-        keep_prob  : probability to use for the dropout layers (default 1)
-        """
-        feed_dict = {
-            self._holders['input']: input_data,
-            self._holders['keep_prob']: keep_prob
-        }
-        if targets is not None:
-            feed_dict[self._holders['targets']] = targets
-        return feed_dict
-
-    def run_training_function(self, input_data, targets, keep_prob=1):
-        """Run a training step of the model.
-
-        input_data : a 2-D numpy.ndarray (or pandas.DataFrame) where
-                     each row is a sample to feed to the model
-        targets    : target values associated with the input data
-                     (numpy.ndarray or pandas structure)
-        keep_prob  : probability for each unit to have its outputs used in
-                     the training procedure (float in [0., 1.], default 1.)
-        """
-        feed_dict = self._get_feed_dict(input_data, targets, keep_prob)
-        self.session.run(self._training_function, feed_dict)
-
-    def predict(self, input_data):
-        """Predict the targets associated with a given set of inputs."""
-        feed_dict = self._get_feed_dict(input_data)
-        return self._readouts['prediction'].eval(feed_dict, self.session)
 
     def score(self, input_data, targets):
         """Return the root mean square prediction error of the network.

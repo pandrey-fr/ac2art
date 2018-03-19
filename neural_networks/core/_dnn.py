@@ -8,7 +8,6 @@ from collections import OrderedDict
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.components import build_rmse_readouts
 from neural_networks.components.filters import LowpassFilter, SignalFilter
 from neural_networks.components.layers import DenseLayer, NeuralLayer
 from neural_networks.components.rnn import (
@@ -59,7 +58,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
       run. Additionally, the `keep_prob` argument may be set to any
       float between 0 and 1 to use dropout when training the layers.
       Note that by default, all dense layers are set to be affected
-      by this dropout, with a shared probability paramter ; this may
+      by this dropout, with a shared probability parameter ; this may
       be changed by explicitely setting 'keep_prob' to None in these
       layers' keyword arguments dict in `layers_config` at `__init__`.
 
@@ -100,20 +99,69 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
 
     * Setting up the network's basics and hidden stack (Network building, 1/2)
 
-    - _validate_args
-    - _build_placeholders
-    - _build_hidden_layers
+    - The `_validate_args` method is first run to ensure that all
+      arguments provided to instanciate a network are of expected
+      type and/or values. Subclasses should override this method
+      to validate any non-basic `__init__` parameter they introduce.
 
-    Hidden API
-    - _holders, _layers, _readouts
-    - _top_layer, _layer_weights
+    - The `_build_placeholders` method is then run to assign tensorflow
+      placeholders to the dict attribute `_holders`. Those are used to
+      pass on input and target data, but also to specify parameters
+      such as dropout. Subclasses may have to override this, either
+      to introduce additional placeholders or alter the shape of the
+      basic ones.
+
+    - The `_build_hidden_layers` method comes next, and is run to
+      instanciate forward layers, recurrent units' stacks and signal
+      filters following the architecture specified through the
+      `layers_config` attribute. This method should not need overriding
+      by any subclass, as it is a general way to build up hidden layers
+      sequentially, handling some technicalities such as setting dropout
+      (unless explicitely told not to) or assigning unique names to
+      rnn stacks in order to avoid tensorflow scope issues. The hidden
+      layers are stored in the `_layers` OrderedDict attribute.
 
 
     * From readouts to training - abstract methods (Network building, 2/2)
 
-    - _build_readout_layer (abstractmethod)
-    - _build_readouts (abstractmethod)
-    - _build_training_function (abstractmethod)
+    - The `_build_readout_layer` is an abstract method that needs
+      implementing by subclasses. It should design the network's final
+      hidden layer (typically using an identity activation function),
+      whose purpose is to produce an output of proper dimension to be
+      then used to derive a prediction, or any kind of metric useful
+      to train the network.
+
+    - The `_build_readouts` method is run after the previous, and is
+      basically a caller of other hidden methods used sequentially
+      to fill the `_readouts` dict attribute with tensors useful to
+      train and/or evaluate the network's performances. This method
+      may be overriden by subclasses which may need to add up steps
+      (i.e. additional methods) to this end. In its basic deifinition,
+      this method calls, in that order, the following methods:
+        1. `build_initial_prediction`, an abstract method which should
+        assign a tensor to the `_readouts` attribute under the
+        'raw_prediction' key.
+
+        2. `build_refined_prediction`, an implemented method which aims
+        at improving the raw prediction, through optional steps of
+        de-normalization and signal filtering (smoothing).
+
+        3. `build_error_readouts`, an abstract method which should assign
+        to the `_readouts` attribute any tensor necessary to building
+        the training function.
+
+    - Finally, the `_build_training_function` is run. This abstract
+      method should build one or more tensorflow operations that
+      need running so as to update the network's weights (or signal
+      cutoff frequencies) and assign them (e.g. as a list) to the
+      `_training_function` attribute.
+
+
+    [Network training and scoring]
+
+    - `run_training_function`
+    - `predict`
+    - `score`
     """
 
     def __init__(
@@ -364,13 +412,16 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         # Assign the refined prediction to the _readouts attribute.
         self._readouts['prediction'] = prediction
 
+    @abstractmethod
     @onetimemethod
     def _build_error_readouts(self):
-        """Build error readouts of the network's prediction."""
-        readouts = build_rmse_readouts(
-            self._readouts['prediction'], self._holders['targets']
-        )
-        self._readouts.update(readouts)
+        """Build error readouts of the network's prediction.
+
+        This method should assign any tensorflow.Tensor to
+        the `_readouts` dict atttribute necessary to define
+        the network's training function.
+        """
+        return NotImplemented
 
     @abstractmethod
     @onetimemethod
@@ -379,6 +430,46 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
 
         This method should assign a tensorflow operation
         to the `_training_function` attribute.
+        """
+        return NotImplemented
+
+    def _get_feed_dict(self, input_data, targets=None, keep_prob=1):
+        """Build a tensorflow feeding dictionary out of provided arguments.
+
+        input_data : data to feed to the network
+        targets    : optional true targets associated with the inputs
+        keep_prob  : probability to use for the dropout layers (default 1)
+        """
+        feed_dict = {
+            self._holders['input']: input_data,
+            self._holders['keep_prob']: keep_prob
+        }
+        if targets is not None:
+            feed_dict[self._holders['targets']] = targets
+        return feed_dict
+
+    def run_training_function(self, input_data, targets, keep_prob=1):
+        """Run a training step of the model.
+
+        input_data : samples to feed to the network (2-D numpy.ndarray)
+        targets    : target values associated with the input data
+        keep_prob  : probability for each unit to have its outputs used in
+                     the training procedure (float in [0., 1.], default 1.)
+        """
+        feed_dict = self._get_feed_dict(input_data, targets, keep_prob)
+        self.session.run(self._training_function, feed_dict)
+
+    def predict(self, input_data):
+        """Predict the targets associated with a given set of inputs."""
+        feed_dict = self._get_feed_dict(input_data)
+        return self._readouts['prediction'].eval(feed_dict, self.session)
+
+    @abstractmethod
+    def score(self, input_data, targets):
+        """Return the root mean square prediction error of the network.
+
+        input_data : input data sample to evalute the model on which
+        targets    : true targets associated with the input dataset
         """
         return NotImplemented
 
