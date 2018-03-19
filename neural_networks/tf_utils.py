@@ -88,11 +88,11 @@ def minimize_safely(optimizer, loss, var_list=None, reduce_fn=None):
         """Replace all NaN values in a given gradient Tensor."""
         default = tf.cond(
             tf.reduce_sum(tf.cast(tf.is_finite(gradient), tf.float32)) > 0,
-            lambda : (
+            lambda: (
                 tf.ones_like(gradient) if reduce_fn is None
                 else tf.ones_like(gradient) * reduce_fn(gradient)
             ),
-            lambda : tf.zeros_like(gradient),
+            lambda: tf.zeros_like(gradient),
         )
         return tf.where(tf.is_finite(gradient), gradient, default)
     # Replace all NaN values and apply the gradients.

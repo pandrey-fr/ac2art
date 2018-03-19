@@ -9,9 +9,8 @@ from neural_networks.components.mlpg import (
     expand_tmdn_standard_deviations,
     generate_trajectory_from_gaussian_mixture
 )
-from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MixtureDensityNetwork
-from neural_networks.utils import check_positive_int, onetimemethod
+from neural_networks.utils import onetimemethod
 
 
 class TrajectoryMDN(MixtureDensityNetwork):
