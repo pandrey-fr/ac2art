@@ -179,3 +179,14 @@ def abx_from_features(features_filename, dataset=None, n_jobs=1):
         make_abx_task(dataset)
     # Run the ABXpy pipeline.
     abxpy_pipeline(features_file, task_file, output_file, n_jobs)
+
+
+def load_abx_scores(filename):
+    """Load, aggregate and return some pre-computed abx scores."""
+    path = os.path.join(ABX_FOLDER, filename + '_abx.csv')
+    data = pd.read_csv(path, sep='\t')
+    data['score'] *= data['n']
+    data['phones'] = data['phone_1'] + '_' + data['phone_2']
+    scores = data.groupby('phones')[['score', 'n']].sum()
+    scores['score'] /= scores['n']
+    return scores
