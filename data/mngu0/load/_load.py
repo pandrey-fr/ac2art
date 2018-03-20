@@ -76,9 +76,8 @@ def load_acoustic(
     """Load the acoustic data associated with an utterance from mngu0.
 
     name           : name of the utterance whose data to load (str)
-    audio_type     : name of the audio features to use,
-                     including normalization indications
-                     (str, default 'mfcc_stds')
+    audio_type     : name of the audio features to use, including
+                     normalization indications (str, default 'mfcc_stds')
     context_window : half-size of the context window of frames to return
                      (default 0, returning single audio frames)
     zero_padding   : whether to zero-pad the data when building context

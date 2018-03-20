@@ -20,28 +20,26 @@ ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
 
 def extract_h5_features(
         audio_features=None, ema_features=None, output_name='mngu0_features',
-        use_dynamic='both', dynamic_window=5, sampling_rate=200
+        dynamic_ema=True, sampling_rate=200
     ):
     """Build an h5 file recording audio features associated with mngu0 data.
 
-    audio_features : optional tuple of names of audio features to use
+    audio_features : optional name of audio features to use, including
+                     normalization indications
     ema_features   : optional name of ema features' normalization to use
                      (use '' for raw data and None for no EMA data)
     output_name    : base name of the output file (default 'mngu0_features')
-    use_dynamic    : which dynamic features to compute
-                     ('audio', 'ema', 'none' or 'both')
-    dynamic_window : half-size of the window used to compute dynamic features
-                     (int, default 5, set to 0 to use static features only)
+    dynamic_ema    : whether to include dynamic articulatory features
+                     (bool, default True)
     sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
     """
-    # Arguments serve modularity; pylint: disable=too-many-arguments
     # Check that the destination file does not exist.
     output_file = os.path.join(ABX_FOLDER, '%s.features' % output_name)
     if os.path.isfile(output_file):
         raise FileExistsError("File '%s' already exists." % output_file)
     # Set up the features loading function.
     load_features = _setup_features_loader(
-        audio_features, ema_features, use_dynamic, dynamic_window
+        audio_features, ema_features, dynamic_ema
     )
     # Load the list of utterances and process them iteratively.
     utterances = get_utterances_set()
@@ -58,9 +56,7 @@ def extract_h5_features(
             )
 
 
-def _setup_features_loader(
-        audio_features, ema_features, use_dynamic, dynamic_window
-    ):
+def _setup_features_loader(audio_features, ema_features, dynamic_ema):
     """Build a function to load features associated with an mngu0 utterance.
 
     See `data.mngu0.abx.extract_h5_features` documentation for arguments.
@@ -68,19 +64,16 @@ def _setup_features_loader(
     if audio_features is None and ema_features is None:
         raise RuntimeError('No features were set to be included.')
     # Build the acoustic features loading function.
-    if audio_features:
-        window = dynamic_window if use_dynamic in ['audio', 'both'] else 0
+    if audio_features is not None:
         load_audio = functools.partial(
-            load_acoustic, audio_types=audio_features,
-            context_window=0, dynamic_window=window
+            load_acoustic, audio_type=audio_features, context_window=0
         )
         if ema_features is None:
             return load_audio
     # Build the articulatory features loading function.
-    if ema_features:
-        window = dynamic_window if use_dynamic in ['ema', 'both'] else 0
+    if ema_features is not None:
         load_articulatory = functools.partial(
-            load_ema, norm_type=ema_features, dynamic_window=window
+            load_ema, norm_type=ema_features, use_dynamic=dynamic_ema
         )
         if audio_features is None:
             return load_articulatory
@@ -158,7 +151,8 @@ def abx_from_features(features_filename, dataset=None, n_jobs=1):
     task_file = 'mngu0_%stask.abx' % ('' if dataset is None else dataset + '_')
     task_file = os.path.join(ABX_FOLDER, task_file)
     features_file = os.path.join(ABX_FOLDER, features_filename + '.features')
-    output_file = os.path.join(ABX_FOLDER, features_filename + '_abx.csv')
+    extension = '%s_abx.csv' % ('' if dataset is None else '_' + dataset)
+    output_file = os.path.join(ABX_FOLDER, features_filename + extension)
     # Check that the features file exists.
     if not os.path.exists(features_file):
         raise FileNotFoundError("File '%s' does not exist." % features_file)
