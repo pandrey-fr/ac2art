@@ -52,7 +52,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """Build the instance's placeholders."""
         super()._build_placeholders()
         self._holders['_delta_weights'] = (
-            tf.placeholder(tf.float32, [None, None])
+            tf.placeholder(tf.float64, [None, None])
         )
 
     @onetimemethod

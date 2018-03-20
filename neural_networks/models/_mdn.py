@@ -158,7 +158,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Build a function to maximize the network's mean log-likelihood.
         maximize_likelihood = minimize_safely(
             self.optimizer, loss=-1 * self._readouts['mean_log_likelihood'],
-            var_list=self._neural_weights, reduce_fn=tf.reduce_max
+            var_list=self._neural_weights
         )
         # Build a function to minimize the prediction error.
         super()._build_training_function()

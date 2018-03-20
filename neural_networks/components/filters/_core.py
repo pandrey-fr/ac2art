@@ -130,6 +130,8 @@ class SignalFilter(metaclass=ABCMeta):
         session : a tensorflow.Session in the context of which
                   the assignment is to be performed
         """
+        if not self.learnable:
+            return None
         if not isinstance(cutoff, np.ndarray) or len(cutoff) != self.n_channels:
             raise TypeError("Invalid 'cutoff' argument.")
         session.run(tf.assign(self.cutoff, cutoff))

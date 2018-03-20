@@ -59,7 +59,7 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     means = tf.concat([
         means[:, i * n_targets:(i + 1) * n_targets] for i in range(3)
     ], axis=0)
-    inv_stds = tf.matrix_diag(1 / tf.square(stds))
+    inv_stds = tf.matrix_diag(1 / (tf.square(stds) + 1e-30))
     # Solve the system using cholesky decomposition of the left term matrix.
     weighted_inv_stds = tf.matmul(tf.matrix_transpose(weights), inv_stds)
     static_features = tf.cholesky_solve(
@@ -118,7 +118,7 @@ def generate_trajectory_from_gaussian_mixture(
             axis=2
         )
         log_likelihood = tf.reduce_sum(
-            tf.log(tf.reduce_sum(densities, axis=1))
+            tf.log(tf.reduce_sum(densities, axis=1) + 1e-30)
         )
         return features, densities, log_likelihood
     # Set up the maximization step function.
