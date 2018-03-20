@@ -19,8 +19,8 @@ ABX_FOLDER = os.path.join(CONSTANTS['mngu0_processed_folder'], 'abx')
 
 
 def extract_h5_features(
-        audio_features=None, ema_features=None, output_name='mngu0_features',
-        dynamic_ema=True, sampling_rate=200
+        audio_features=None, ema_features=None, inverter=None,
+        output_name='mngu0_features', dynamic_ema=True, sampling_rate=200
     ):
     """Build an h5 file recording audio features associated with mngu0 data.
 
@@ -28,6 +28,8 @@ def extract_h5_features(
                      normalization indications
     ema_features   : optional name of ema features' normalization to use
                      (use '' for raw data and None for no EMA data)
+    inverter       : optional acoustic-articulatory inverter whose predictions
+                     to return, based on the specified audio features
     output_name    : base name of the output file (default 'mngu0_features')
     dynamic_ema    : whether to include dynamic articulatory features
                      (bool, default True)
@@ -39,7 +41,7 @@ def extract_h5_features(
         raise FileExistsError("File '%s' already exists." % output_file)
     # Set up the features loading function.
     load_features = _setup_features_loader(
-        audio_features, ema_features, dynamic_ema
+        audio_features, ema_features, inverter, dynamic_ema
     )
     # Load the list of utterances and process them iteratively.
     utterances = get_utterances_set()
@@ -56,19 +58,35 @@ def extract_h5_features(
             )
 
 
-def _setup_features_loader(audio_features, ema_features, dynamic_ema):
+def _setup_features_loader(audio_features, ema_features, inverter, dynamic_ema):
     """Build a function to load features associated with an mngu0 utterance.
 
     See `data.mngu0.abx.extract_h5_features` documentation for arguments.
     """
     if audio_features is None and ema_features is None:
         raise RuntimeError('No features were set to be included.')
+    if inverter is not None:
+        if audio_features is None:
+            raise RuntimeError(
+                'No acoustic features specified to feed the inverter.'
+            )
+        elif ema_features is not None:
+            raise RuntimeError(
+                'Both articulatory features and an inverter were specified.'
+            )
     # Build the acoustic features loading function.
     if audio_features is not None:
+        window = 0 if inverter is None or inverter.input_shape[1] % 11 else 5
         load_audio = functools.partial(
-            load_acoustic, audio_type=audio_features, context_window=0
+            load_acoustic, audio_type=audio_features, context_window=window
         )
-        if ema_features is None:
+        # Optionally build and return an inverter-based features loader.
+        if inverter is not None:
+            def invert_features(utterance):
+                """Return the features inverted from an utterance."""
+                return inverter.predict(load_audio(utterance))
+            return invert_features
+        elif ema_features is None:
             return load_audio
     # Build the articulatory features loading function.
     if ema_features is not None:
