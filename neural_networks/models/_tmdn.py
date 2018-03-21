@@ -35,6 +35,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
     Density Network for the Acoustic-Articulatory Inversion Mapping.
     """
 
+    @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any mixture density network.
@@ -48,6 +49,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         # Override the parent class's number of parameters.
         self.n_parameters = self.n_components * (4 + self.n_targets)
 
+    @onetimemethod
     def _build_placeholders(self):
         """Build the instance's placeholders."""
         super()._build_placeholders()

@@ -2,7 +2,7 @@
 
 """Abstract class defining the API and common methods of neural networks."""
 
-from ._dnn import (
-    DeepNeuralNetwork, load_dumped_model,
-    get_layer_class, validate_layer_config
+from ._build_layers import (
+    build_layers_stack, get_layer_class, validate_layer_config
 )
+from ._dnn import DeepNeuralNetwork, load_dumped_model

@@ -38,7 +38,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             self, input_shape, n_targets, n_components, layers_config,
             top_filter=None, norm_params=None, optimizer=None
         ):
-        """Instanciate the mixture density network.
+        """Instantiate the mixture density network.
 
         input_shape   : shape of the input data fed to the network,
                         with the number of samples as first component
@@ -64,6 +64,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             norm_params, optimizer=optimizer, n_components=n_components
         )
 
+    @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any multilayer perceptron.
@@ -247,6 +248,7 @@ class FullVarianceMDN(MixtureDensityNetwork):
     still diagonal, but with different values along its diagonal.
     """
 
+    @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any mixture density network.

@@ -4,18 +4,17 @@
 
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
+import os
 
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.components.filters import LowpassFilter, SignalFilter
-from neural_networks.components.layers import DenseLayer, NeuralLayer
-from neural_networks.components.rnn import (
-    AbstractRNN, RecurrentNeuralNetwork, BidirectionalRNN
-)
+from neural_networks.core import build_layers_stack, validate_layer_config
+from neural_networks.components.filters import SignalFilter
+from neural_networks.components.layers import NeuralLayer
+from neural_networks.components.rnn import AbstractRNN
 from neural_networks.utils import (
-    check_positive_int, check_type_validity,
-    get_object, instanciate, onetimemethod
+    check_positive_int, check_type_validity, instanciate, onetimemethod
 )
 
 
@@ -25,143 +24,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     This class defines both an API and a building procedure for neural
     networks aimed at solving supervised learning problems.
 
-    [Public API]
-
-    * Initialization and layers configuration (Public API, 1/3)
-
-    - An `__init__` method allows the user to fully configure the
-      network's architecture and specificities, noticeably through
-      the `layers_config` argument presented below. The `__init__`
-      is further discussed in the "Network building" section.
-
-    - The `layers_config` argument used at the initialization step
-      fully specifies the network's hidden layers stack, and should
-      do so in any subclass. Subclasses should in turn specify the
-      readout layer, the algorithm generating a prediction out of
-      it and the training function(s) used to fit the model.
-
-    - The structure of `layers_config` is rather straight-forward: it
-      consists of a list of tuples, each of which specifies a layer of
-      the network, ordered from input to readout and stacked on top of
-      each other. These layers may either be an actual neural layer, a
-      stack of RNN layers or a signal filtering process. Each layer is
-      specified as a tuple containing the layer's class (or a keyword
-      designating it), its number of units (or cutoff frequency, for
-      signal filters) and an optional dict of keyword arguments used
-      to instanciate the layer.
-
-
-    * Training, predicting and scoring methods (Public API, 2/3)
-
-    - The `run_training_function` should be used to train the model.
-      It requires both some input data and the associated targets to
-      run. Additionally, the `keep_prob` argument may be set to any
-      float between 0 and 1 to use dropout when training the layers.
-      Note that by default, all dense layers are set to be affected
-      by this dropout, with a shared probability parameter ; this may
-      be changed by explicitely setting 'keep_prob' to None in these
-      layers' keyword arguments dict in `layers_config` at `__init__`.
-
-    - The `predict` method requires only input data and returns the
-      network's prediction as a numpy.array.
-
-    - The `score` method returns a subclass-specific evaluation metric
-      of the model's outputs based on some input data and the target
-      values associated with it.
-
-
-    * Saving, restoring and resetting the model (Public API, 3/3)
-
-    - The `save_model` method allows to save the network's weights as
-      well as its full specification to a simple .npy file. The stored
-      values may also be accessed through the `architecture` attribute
-      and the `get_values` method.
-
-    - The `restore_model` method allows to restore and instanciated
-      model's weights from a .npy dump. More generally, the function
-      `load_dumped_model` may be used to fully instanciate a dumped
-      model.
-
-    - The `reset_model` method may be used at any moment to reset the
-      model's weights to their initial (randomized) value.
-
-
-    [Network building]
-
-    Apart from desining some common arguments, the `__init__` method
-    includes both an arguments-processing procedure which enables its
-    call by any subclass (bypassing intermediary subclasses if needed)
-    and a network building procedure. The latter is made of multiple
-    private methods called successively and protected against being
-    called more than once. This section aims at presenting the design
-    of these hidden methods, some of which are meant to be overriden
-    by subclasses.
-
-    * Setting up the network's basics and hidden stack (Network building, 1/2)
-
-    - The `_validate_args` method is first run to ensure that all
-      arguments provided to instanciate a network are of expected
-      type and/or values. Subclasses should override this method
-      to validate any non-basic `__init__` parameter they introduce.
-
-    - The `_build_placeholders` method is then run to assign tensorflow
-      placeholders to the dict attribute `_holders`. Those are used to
-      pass on input and target data, but also to specify parameters
-      such as dropout. Subclasses may have to override this, either
-      to introduce additional placeholders or alter the shape of the
-      basic ones.
-
-    - The `_build_hidden_layers` method comes next, and is run to
-      instanciate forward layers, recurrent units' stacks and signal
-      filters following the architecture specified through the
-      `layers_config` attribute. This method should not need overriding
-      by any subclass, as it is a general way to build up hidden layers
-      sequentially, handling some technicalities such as setting dropout
-      (unless explicitely told not to) or assigning unique names to
-      rnn stacks in order to avoid tensorflow scope issues. The hidden
-      layers are stored in the `_layers` OrderedDict attribute.
-
-
-    * From readouts to training - abstract methods (Network building, 2/2)
-
-    - The `_build_readout_layer` is an abstract method that needs
-      implementing by subclasses. It should design the network's final
-      hidden layer (typically using an identity activation function),
-      whose purpose is to produce an output of proper dimension to be
-      then used to derive a prediction, or any kind of metric useful
-      to train the network.
-
-    - The `_build_readouts` method is run after the previous, and is
-      basically a caller of other hidden methods used sequentially
-      to fill the `_readouts` dict attribute with tensors useful to
-      train and/or evaluate the network's performances. This method
-      may be overriden by subclasses which may need to add up steps
-      (i.e. additional methods) to this end. In its basic deifinition,
-      this method calls, in that order, the following methods:
-        1. `build_initial_prediction`, an abstract method which should
-        assign a tensor to the `_readouts` attribute under the
-        'raw_prediction' key.
-
-        2. `build_refined_prediction`, an implemented method which aims
-        at improving the raw prediction, through optional steps of
-        de-normalization and signal filtering (smoothing).
-
-        3. `build_error_readouts`, an abstract method which should assign
-        to the `_readouts` attribute any tensor necessary to building
-        the training function.
-
-    - Finally, the `_build_training_function` is run. This abstract
-      method should build one or more tensorflow operations that
-      need running so as to update the network's weights (or signal
-      cutoff frequencies) and assign them (e.g. as a list) to the
-      `_training_function` attribute.
-
-
-    [Network training and scoring]
-
-    - `run_training_function`
-    - `predict`
-    - `score`
+    {API_DOCSTRING}
     """
 
     def __init__(
@@ -344,28 +207,11 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @onetimemethod
     def _build_hidden_layers(self):
         """Build the network's hidden layers."""
-        # Gather the input placeholder. Declare a layers counter.
-        input_tensor = self._holders['input']
-        layers_count = {}
-        # Iteratively build the layers.
-        for name, n_units, kwargs in self.layers_config:
-            # Get the layer's class and update the layers counter.
-            layer_class = get_layer_class(name)
-            layer_name = kwargs.pop(
-                'name', name + '_%s' % layers_count.setdefault(name, 0)
-            )
-            # Handle dropout and avoid RNN scope issues, if relevant.
-            if issubclass(layer_class, (DenseLayer, AbstractRNN)):
-                kwargs = kwargs.copy()
-                if issubclass(layer_class, AbstractRNN):
-                    kwargs['name'] = layer_name + '_%s' % id(self)
-                kwargs.setdefault('keep_prob', self._holders['keep_prob'])
-            # Instanciate the layer.
-            layer = layer_class(input_tensor, n_units, **kwargs)
-            # Add the layer to the stack and use its output as next input.
-            self._layers[layer_name] = layer
-            layers_count[name] += 1
-            input_tensor = layer.output
+        hidden_layers = build_layers_stack(
+            self._holders['input'], self.layers_config,
+            self._holders['keep_prob'], check_config=False
+        )
+        self._layers.update(hidden_layers)
 
     @abstractmethod
     @onetimemethod
@@ -403,12 +249,9 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             prediction *= self.norm_params
         # Optionally filter the prediction.
         if self.top_filter is not None:
-            filter_class, cutoff, kwargs = self.top_filter
-            filter_class = get_layer_class(filter_class)
-            self._layers['top_filter'] = (
-                filter_class(prediction, cutoff, **kwargs)
-            )
-            prediction = self._layers['top_filter'].output
+            top_filter = build_layers_stack(prediction, [self.top_filter])[0]
+            self._layers['top_filter'] = top_filter
+            prediction = top_filter.output
         # Assign the refined prediction to the _readouts attribute.
         self._readouts['prediction'] = prediction
 
@@ -474,47 +317,13 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         return NotImplemented
 
 
-def get_layer_class(layer_class):
-    """Validate and return a layer class.
-
-    layer_class : either a subclass from AbstractRNN, NeuralLayer or
-                  SignalFilter, or the (short) name of one such class
-    """
-    if isinstance(layer_class, str):
-        reference_dict = {
-            'dense_layer': DenseLayer, 'rnn_stack': RecurrentNeuralNetwork,
-            'bi_rnn_stack': BidirectionalRNN, 'lowpass_filter': LowpassFilter
-        }
-        return get_object(layer_class, reference_dict, 'layer class')
-    elif issubclass(layer_class, (AbstractRNN, NeuralLayer, SignalFilter)):
-        return layer_class
-    else:
-        raise TypeError("'layer_class' should be a str or an adequate class.")
-
-
-def validate_layer_config(config):
-    """Validate that a given object is fit as a layer's configuration.
-
-    Return the validated object, which may have been extended with an
-    empty dict.
-    """
-    # Check that the configuration is a three-elements tuple.
-    if not isinstance(config, tuple):
-        raise TypeError("Layer configuration elements should be tuples.")
-    if len(config) == 2:
-        config = (*config, {})
-    elif len(config) != 3:
-        raise TypeError(
-            "Wrong layer configuration tuple length: should be 2 or 3."
-        )
-    # Check sub-elements types.
-    check_type_validity(config[0], (str, type), 'layer class')
-    check_type_validity(
-        config[1], (int, list, tuple), 'layer primary parameter'
+# Load up the full DeepNeuralNetwork docstring.
+DOC_PATH = os.path.join(os.path.dirname(__file__), 'dnn_api_doc.md')
+with open(DOC_PATH, encoding='utf-8') as doc:
+    API_DOCSTRING = doc.read().replace('\n', '\n    ')
+    DeepNeuralNetwork.__doc__ = (
+        DeepNeuralNetwork.__doc__.format(API_DOCSTRING=API_DOCSTRING)
     )
-    check_type_validity(config[2], dict, 'layer config kwargs')
-    # Return the config tuple.
-    return config
 
 
 def load_dumped_model(filename, model=None):
@@ -525,9 +334,16 @@ def load_dumped_model(filename, model=None):
                (default None, implying that a model is instanciated
                based on the dumped configuration and returned)
     """
-    # Load the dumped model configuration.
+    # Load the dumped model configuration and check its validity.
     config = np.load(filename).tolist()
     check_type_validity(config, dict, 'loaded configuration')
+    missing_keys = [
+        key for key in
+        ('__init__', '__class__', '__rebuild_init__', 'architecture', 'values')
+        if key not in config.keys()
+    ]
+    if missing_keys:
+        raise KeyError("Invalid model dump. Missing key(s): %s." % missing_keys)
     # If no model was provided, instanciate one.
     new_model = model is None
     if new_model:
@@ -536,6 +352,10 @@ def load_dumped_model(filename, model=None):
         )
         if 'session' not in config['__init__'].keys():
             model.reset_model()
+    # Check that the provided or rebuild model is indeed a neural network.
+    check_type_validity(
+        model, DeepNeuralNetwork, 'rebuilt model' if new_model else 'model'
+    )
     # Check that the model's architecture is coherent with the dump.
     if model.architecture != config['architecture']:
         raise TypeError("Invalid network architecture.")

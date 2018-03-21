@@ -20,7 +20,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
             self, input_shape, n_targets, layers_config, top_filter=None,
             norm_params=None, optimizer=None
         ):
-        """Instanciate a multilayer perceptron for regression tasks.
+        """Instantiate a multilayer perceptron for regression tasks.
 
         input_shape   : shape of the input data fed to the network,
                         with the number of samples as first component
@@ -49,7 +49,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         arguments used at initialization, containing only values which
         numpy.save can serialize. The second associates to non-serializable
         arguments' names a dict enabling their (recursive) reconstruction
-        using the `neural_networks.utils.instanciate` function.
+        using the `neural_networks.utils.instantiate` function.
         """
         # Pop out the optimizer instance from the initialization arguments.
         init_arguments = self._init_arguments.copy()
@@ -72,6 +72,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Return the serializable arguments and the optimizer configuration.
         return init_arguments, {'optimizer': optimizer_config}
 
+    @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
         # Control arguments common to any DeepNeuralNetwork subclass.
@@ -100,7 +101,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """Build the network's initial prediction.
 
         For the basic MLP, this is simply the readout layer's output.
-        This method should be overriden by subclasses to define more
+        This method should be overridden by subclasses to define more
         complex predictions.
         """
         self._readouts['raw_prediction'] = self._layers['readout_layer'].output

@@ -23,7 +23,7 @@ class AbstractRNN(metaclass=ABCMeta):
             self, input_data, layers_shape, cell_type='lstm',
             activation='tanh', name='rnn', keep_prob=None
         ):
-        """Instanciate the recurrent neural network.
+        """Instantiate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
@@ -152,7 +152,7 @@ class RecurrentNeuralNetwork(AbstractRNN):
             self, input_data, layers_shape, cell_type='lstm',
             activation='tanh', name='rnn', keep_prob=None
         ):
-        """Instanciate the recurrent neural network.
+        """Instantiate the recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
@@ -217,7 +217,7 @@ class BidirectionalRNN(AbstractRNN):
             activation='tanh', name='bi_rnn', aggregate='concatenate',
             keep_prob=None
         ):
-        """Instanciate the bidirectional recurrent neural network.
+        """Instantiate the bidirectional recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
