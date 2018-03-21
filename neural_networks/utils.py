@@ -94,30 +94,30 @@ def import_from_string(module, elements):
     return tuple(getattr(lib, element) for element in elements)
 
 
-def instanciate(class_name, init_kwargs, rebuild_init=None):
-    """Instanciate an object given a class name and initial arguments.
+def instantiate(class_name, init_kwargs, rebuild_init=None):
+    """Instantiate an object given a class name and initial arguments.
 
-    The initialization arguments of the object to instanciate may
-    be instanciated recursively using the exact same function.
+    The initialization arguments of the object to instantiate may
+    be instantiated recursively using the exact same function.
 
     class_name   : full module and class name of the object (str)
     init_kwargs  : dict of keyword arguments to use for instanciation
-    rebuild_init : dict associating dict of `instanciate` arguments to
-                   arguments name, used to recursively instanciate any
-                   object nececessary to instanciate the main one
+    rebuild_init : dict associating dict of `instantiate` arguments to
+                   arguments name, used to recursively instantiate any
+                   object nececessary to instantiate the main one
     """
     # Check arguments validity.
     check_type_validity(class_name, str, 'class_name')
     check_type_validity(init_kwargs, dict, 'init_kwargs')
     check_type_validity(rebuild_init, (type(None), dict), 'rebuild_init')
-    # Optionally instanciate init arguments, recursively.
+    # Optionally instantiate init arguments, recursively.
     if rebuild_init is not None:
         for key, arguments in rebuild_init.items():
-            init_kwargs[key] = instanciate(**arguments)
-    # Gather the class constructor of the object to instanciate.
+            init_kwargs[key] = instantiate(**arguments)
+    # Gather the class constructor of the object to instantiate.
     module, name = class_name.rsplit('.', 1)
     constructor = import_from_string(module, name)
-    # Instanciate the object and return it.
+    # Instantiate the object and return it.
     return constructor(**init_kwargs)
 
 

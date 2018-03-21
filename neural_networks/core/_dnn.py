@@ -14,7 +14,7 @@ from neural_networks.components.filters import SignalFilter
 from neural_networks.components.layers import NeuralLayer
 from neural_networks.components.rnn import AbstractRNN
 from neural_networks.utils import (
-    check_positive_int, check_type_validity, instanciate, onetimemethod
+    check_positive_int, check_type_validity, instantiate, onetimemethod
 )
 
 
@@ -132,7 +132,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         arguments used at initialization, containing only values which
         numpy.save can serialize. The second associates to non-serializable
         arguments' names a dict enabling their (recursive) reconstruction
-        using the `neural_networks.utils.instanciate` function.
+        using the `neural_networks.utils.instantiate` function.
         """
         return self.init_arguments, None
 
@@ -330,8 +330,8 @@ def load_dumped_model(filename, model=None):
     """Restore a neural network model from a .npy dump.
 
     filename : path to a .npy file containing a model's configuration
-    model    : optional instanciated model whose weights to restore
-               (default None, implying that a model is instanciated
+    model    : optional instantiated model whose weights to restore
+               (default None, implying that a model is instantiated
                based on the dumped configuration and returned)
     """
     # Load the dumped model configuration and check its validity.
@@ -344,10 +344,10 @@ def load_dumped_model(filename, model=None):
     ]
     if missing_keys:
         raise KeyError("Invalid model dump. Missing key(s): %s." % missing_keys)
-    # If no model was provided, instanciate one.
+    # If no model was provided, instantiate one.
     new_model = model is None
     if new_model:
-        model = instanciate(
+        model = instantiate(
             config['__class__'], config['__init__'], config['__rebuild_init__']
         )
         if 'session' not in config['__init__'].keys():
@@ -362,5 +362,5 @@ def load_dumped_model(filename, model=None):
     # Restore the model's weights. pylint: disable=protected-access
     for name, layer in model._layers.items():
         layer.set_values(config['values'][name], model.session)
-    # If the model was instanciated within this function, return it.
+    # If the model was instantiated within this function, return it.
     return model if new_model else None

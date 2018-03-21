@@ -123,6 +123,7 @@ class SignalFilter(metaclass=ABCMeta):
         """
         return session.run(self.cutoff)
 
+    # Always return None. pylint: disable=inconsistent-return-statements
     def set_values(self, cutoff, session):
         """Change the filter's current cutoff value.
 
@@ -135,6 +136,7 @@ class SignalFilter(metaclass=ABCMeta):
         if not isinstance(cutoff, np.ndarray) or len(cutoff) != self.n_channels:
             raise TypeError("Invalid 'cutoff' argument.")
         session.run(tf.assign(self.cutoff, cutoff))
+    # pylint: enable=inconsistent-return-statements
 
     def get_cutoff_training_function(self, quantity, learning_rate):
         """Build and return a training function to learn the filter's cutoff.

@@ -30,7 +30,7 @@ def build_layers_stack(
                     tuple should contain a layer type (or its shortname),
                     a primary argument (number of units, or cutoff frequency
                     for signal filters) and an optional dict of keyword
-                    arguments used to instanciate the layer
+                    arguments used to instantiate the layer
     keep_prob     : optional tensor specifying dropout keep probability
     check_config  : whether to check `layers_config` to be valid
                     (bool, default True)
@@ -56,7 +56,7 @@ def build_layers_stack(
             if issubclass(layer_class, AbstractRNN):
                 kwargs['name'] = layer_name + '_%s' % int(time.clock())
             kwargs.setdefault('keep_prob', keep_prob)
-        # Instanciate the layer.
+        # instantiate the layer.
         layer = layer_class(input_tensor, n_units, **kwargs)
         # Add the layer to the stack and use its output as next input.
         layers_stack[layer_name] = layer

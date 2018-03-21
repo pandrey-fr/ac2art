@@ -21,7 +21,7 @@
   specified as a tuple containing the layer's class (or a keyword
   designating it), its number of units (or cutoff frequency, for
   signal filters) and an optional dict of keyword arguments used
-  to instanciate the layer.
+  to instantiate the layer.
 
 
 * Training, predicting and scoring methods (Public API, 2/3)
@@ -50,9 +50,9 @@
   values may also be accessed through the `architecture` attribute
   and the `get_values` method.
 
-- The `restore_model` method allows to restore and instanciated
+- The `restore_model` method allows to restore and instantiated
   model's weights from a .npy dump. More generally, the function
-  `load_dumped_model` may be used to fully instanciate a dumped
+  `load_dumped_model` may be used to fully instantiate a dumped
   model.
 
 - The `reset_model` method may be used at any moment to reset the
@@ -73,7 +73,7 @@ by subclasses.
 * Setting up the network's basics and hidden stack (Network building, 1/2)
 
 - The `_validate_args` method is first run to ensure that all
-  arguments provided to instanciate a network are of expected
+  arguments provided to instantiate a network are of expected
   type and/or values. Subclasses should override this method
   to validate any non-basic `__init__` parameter they introduce.
 
@@ -85,7 +85,7 @@ by subclasses.
   basic ones.
 
 - The `_build_hidden_layers` method comes next, and is run to
-  instanciate forward layers, recurrent units' stacks and signal
+  instantiate forward layers, recurrent units' stacks and signal
   filters following the architecture specified through the
   `layers_config` attribute. This method should not need overriding
   by any subclass, as it is a general way to build up hidden layers
