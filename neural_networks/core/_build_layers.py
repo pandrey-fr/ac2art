@@ -50,11 +50,13 @@ def build_layers_stack(
         layer_name = kwargs.pop(
             'name', name + '_%s' % layers_counter.setdefault(name, 0)
         )
-        # Handle dropout and avoid RNN scope issues, if relevant.
+        # Handle dropout and naming, if relevant. Avoid RNN scope issues.
         if issubclass(layer_class, (DenseLayer, AbstractRNN)):
             kwargs = kwargs.copy()
-            if issubclass(layer_class, AbstractRNN):
-                kwargs['name'] = layer_name + '_%s' % int(time.clock())
+            kwargs['name'] = (
+                layer_name if issubclass(layer_class, DenseLayer)
+                else layer_name + '_%s' % int(time.time())
+            )
             kwargs.setdefault('keep_prob', keep_prob)
         # instantiate the layer.
         layer = layer_class(input_tensor, n_units, **kwargs)

@@ -249,9 +249,10 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             prediction *= self.norm_params
         # Optionally filter the prediction.
         if self.top_filter is not None:
-            top_filter = build_layers_stack(prediction, [self.top_filter])[0]
-            self._layers['top_filter'] = top_filter
-            prediction = top_filter.output
+            self._layers['top_filter'] = list(
+                build_layers_stack(prediction, [self.top_filter]).values()
+            )[0]
+            prediction = self._layers['top_filter'].output
         # Assign the refined prediction to the _readouts attribute.
         self._readouts['prediction'] = prediction
 

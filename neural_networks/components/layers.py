@@ -18,7 +18,7 @@ class NeuralLayer:
 
     def __init__(
             self, input_data, activation, operation, weight_dim,
-            bias=True, pooling=None
+            bias=True, name='Variable', pooling=None
         ):
         """Initialize the neural layer.
 
@@ -29,6 +29,7 @@ class NeuralLayer:
         weight_dim : list recording the dimensions of the weight matrix
         bias       : whether to add a bias constant to the transformed data
                      passed to the activation function (bool, default True)
+        name       : optional name to give to the layer's inner operations
         pooling    : optional pooling function to apply on top of this layer
         """
         # Meant to be wrapped by children. pylint: disable=too-many-arguments
@@ -43,11 +44,15 @@ class NeuralLayer:
             raise TypeError("'pooling' should be a function or None.")
         self.pooling = pooling
         # Set up the weight and bias terms of the layer's units.
-        self.weight = tf.Variable(tf.truncated_normal(weight_dim, stddev=.1))
-        self.bias = (
-            tf.Variable(tf.constant(0.1, shape=weight_dim[-1:]))
-            if bias else None
+        self.weight = tf.Variable(
+            tf.truncated_normal(weight_dim, stddev=.1), name=name + '_weight'
         )
+        if bias:
+            self.bias = tf.Variable(
+                tf.constant(0.1, shape=weight_dim[-1:]), name=name + '_bias'
+            )
+        else:
+            self.bias = None
         # Set up the operation yielding the layer's outputs.
         output = self.activation(
             self.operation(input_data, self.weight) if not bias
@@ -76,6 +81,13 @@ class NeuralLayer:
                 get_name(self.pooling) if self.pooling is not None else None
             )
         }
+
+    def initialize(self, session):
+        """Initialize the layer in the context of a given session."""
+        if self.bias is not None:
+            session.run(self.bias.initializer)
+        session.run(self.weight.initializer)
+
 
     def get_values(self, session):
         """Return the layer's weight and bias current values.
@@ -117,7 +129,8 @@ class DenseLayer(NeuralLayer):
     """Dense layer of fully-connected units."""
 
     def __init__(
-            self, input_data, n_units, activation, bias=True, keep_prob=None
+            self, input_data, n_units, activation, bias=True,
+            name='DenseLayer', keep_prob=None
         ):
         """Initialize the fully-connected neural layer.
 
@@ -126,9 +139,11 @@ class DenseLayer(NeuralLayer):
         activation : activation function or activation function name
         bias       : whether to add a bias constant to the transformed data
                      passed to the activation function (bool, default True)
+        name       : optional name to give to the layer's inner operations
         keep_prob  : optional Tensor recording a keep probability to use
                      as a dropout parameter
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         check_type_validity(keep_prob, (tf.Tensor, type(None)), 'keep_prob')
         if keep_prob is None:
             dropout = None
@@ -140,7 +155,7 @@ class DenseLayer(NeuralLayer):
         super().__init__(
             input_data, activation, operation=tf.matmul,
             weight_dim=[input_data.shape[1].value, n_units],
-            bias=bias, pooling=dropout
+            bias=bias, name=name, pooling=dropout
         )
 
 
@@ -148,7 +163,8 @@ class ConvolutionalLayer(NeuralLayer):
     """Layer of 2-D convolutional units."""
 
     def __init__(
-            self, input_data, units_shape, activation, bias=True, pooling=None
+            self, input_data, units_shape, activation, bias=True,
+            name='ConvolutionalLayer', pooling=None
         ):
         """Initialize the 2-D convolutional neural layer.
 
@@ -160,9 +176,11 @@ class ConvolutionalLayer(NeuralLayer):
         activation  : activation function or activation function name
         bias        : whether to add a bias constant to the transformed data
                       passed to the activation function (bool, default True)
-        pooling    : optional pooling function to apply on top of this layer
+        name        : optional name to give to the layer's inner operations
+        pooling     : optional pooling function to apply on top of this layer
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_data, activation, operation=conv2d,
-            weight_dim=units_shape, bias=bias, pooling=pooling
+            input_data, activation, operation=conv2d, weight_dim=units_shape,
+            bias=bias, name=name, pooling=pooling
         )
