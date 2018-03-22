@@ -8,30 +8,6 @@ from neural_networks.components.gaussian import gaussian_density
 from neural_networks.utils import check_positive_int
 
 
-def expand_tmdn_standard_deviations(stds, n_components, n_targets):
-    """Reshape the standard deviations of a trajectory mixture density network.
-
-    The TMDN produces three standard deviations per component, one
-    for the static features, one for the delta features and one for
-    the deltadelta features. This function duplicates and orders
-    these values so as to match the shape of the target data points.
-
-    stds         : standard deviations output by the TMDN
-    n_components : number of mixture components
-    n_targets    : number of target values (including delta and deltadelta)
-    """
-    expanded = tf.concat([
-        tf.concat([
-            tf.concat([
-                tf.expand_dims(stds[:, i, j], 1) for _ in range(n_targets // 3)
-            ], axis=1)
-            for j in range(3)
-        ], axis=1)
-        for i in range(n_components)
-    ], axis=1)
-    return tf.reshape(expanded, (-1, n_components, n_targets))
-
-
 def generate_trajectory_from_gaussian(means, stds, weights):
     """Generate a trajectory out of a time sequence of gaussian parameters.
 
@@ -41,9 +17,9 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     gaussian parameters fitted to an input sequence of some kind.
 
     means   : sequence of multivariate means (2-D tensor)
-    stds    : sequence of standard deviations (1-D tensor)
+    stds    : sequence of dimension-wise standard deviations (2-D tensor)
     weights : matrix of weights to derive successive orders
-              of dynamic features out of static ones (2-D tensor)
+              of dynamic features out of static ones (2-D sparse tensor)
 
     Each row of means must include means associated with (in that order)
     the static features, the first-order dynamic features and the second-
@@ -52,22 +28,29 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     # Long but explicit function name; pylint: disable=invalid-name
     # Test arguments' rank validity.
     tf.assert_rank(means, 2)
-    tf.assert_rank(stds, 1)
-    tf.assert_rank(weights, 2)
-    # Reshape the means and standard deviations tensors.
+    tf.assert_rank(stds, 2)
+    tf.assert_equal(means.shape[1], stds.shape[1])
+    # Reshape the means and standard deviations tensors. Transpose the weights.
     n_targets = means.shape[1].value // 3
-    means = tf.concat([
-        means[:, i * n_targets:(i + 1) * n_targets] for i in range(3)
-    ], axis=0)
-    inv_stds = tf.matrix_diag(1 / (tf.square(stds) + 1e-30))
-    # Solve the system using cholesky decomposition of the left term matrix.
-    weighted_inv_stds = tf.matmul(tf.matrix_transpose(weights), inv_stds)
-    static_features = tf.cholesky_solve(
-        tf.cholesky(tf.matmul(weighted_inv_stds, weights)),
-        tf.matmul(weighted_inv_stds, means)
+    def flatten(tensor):
+        """Flatten a 2-D moments tensor."""
+        return tf.concat([
+            tf.reshape(tensor[:, i:i + n_targets], (-1,))
+            for i in range(0, 3 * n_targets, n_targets)
+        ], axis=0)
+    means = tf.expand_dims(flatten(means), 1)
+    inv_stds = tf.matrix_diag(1 / (tf.square(flatten(stds)) + 1e-30))
+    weights_tr = tf.sparse_transpose(weights)
+    # Compute the terms of the parameters generation system.
+    timed_variance = tf.sparse_tensor_dense_matmul(weights_tr, inv_stds)
+    left_term = tf.matrix_transpose(
+        tf.sparse_tensor_dense_matmul(weights_tr, tf.matrix_transpose(timed_variance))
     )
+    right_term = tf.matmul(timed_variance, means)
+    # Solve the system using cholesky decomposition.
+    static_features = tf.cholesky_solve(tf.cholesky(left_term), right_term)
     # Add dynamic features to the predicted static ones and return them.
-    features = tf.matmul(weights, static_features)
+    features = tf.sparse_tensor_dense_matmul(weights, static_features)
     return tf.concat(
         tf.unstack(tf.reshape(features, (3, -1, n_targets))), axis=1
     )
@@ -100,22 +83,15 @@ def generate_trajectory_from_gaussian_mixture(
     tf.assert_rank(priors, 2)
     tf.assert_rank(means, 3)
     tf.assert_rank(stds, 3)
-    tf.assert_rank(weights, 2)
     check_positive_int(n_steps, 'n_steps')
-    # Reshape a copy of the standard deviations for density computations.
-    stddevs = expand_tmdn_standard_deviations(
-        stds, priors.shape[1], means.shape[2]
-    )
     # Set up the expectation step function.
     def generate_trajectory(means_sequence, stds_sequence):
         """Generate a trajectory and density-based metrics."""
-        stds_sequence = tf.reshape(tf.transpose(stds_sequence), (-1,))
         features = generate_trajectory_from_gaussian(
             means_sequence, stds_sequence, weights
         )
         densities = priors * tf.reduce_prod(
-            gaussian_density(tf.expand_dims(features, 1), means, stddevs),
-            axis=2
+            gaussian_density(tf.expand_dims(features, 1), means, stds), axis=2
         )
         log_likelihood = tf.reduce_sum(
             tf.log(tf.reduce_sum(densities, axis=1) + 1e-30)

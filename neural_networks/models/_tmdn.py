@@ -3,10 +3,11 @@
 """Class implementing Trajectory Mixture Density Networks."""
 
 import tensorflow as tf
+import scipy.sparse
+import numpy as np
 
 from data.commons.enhance import build_dynamic_weights_matrix
 from neural_networks.components.mlpg import (
-    expand_tmdn_standard_deviations,
     generate_trajectory_from_gaussian_mixture
 )
 from neural_networks.models import MixtureDensityNetwork
@@ -46,39 +47,23 @@ class TrajectoryMDN(MixtureDensityNetwork):
                 "'n_targets' must be a multiple of 3, comprising "
                 + "first and second order dynamic features count."
             )
-        # Override the parent class's number of parameters.
-        self.n_parameters = self.n_components * (4 + self.n_targets)
 
     @onetimemethod
     def _build_placeholders(self):
         """Build the instance's placeholders."""
         super()._build_placeholders()
         self._holders['_delta_weights'] = (
-            tf.placeholder(tf.float64, [None, None])
-        )
-
-    @onetimemethod
-    def _build_parameters_readouts(self):
-        """Build wrappers reading the produced density mixture parameters."""
-        super()._build_parameters_readouts()
-        stds = tf.reshape(
-            self._readouts['std_deviations'], (-1, self.n_components, 3)
-        )
-        self._readouts['std_deviations_raw'] = stds
-        self._readouts['std_deviations'] = expand_tmdn_standard_deviations(
-            stds, self.n_components, self.n_targets
+            tf.sparse_placeholder(tf.float64, [None, None])
         )
 
     @onetimemethod
     def _build_initial_prediction(self):
         """Build a trajectory prediction using the MLPG algorithm."""
         trajectory = generate_trajectory_from_gaussian_mixture(
-            self._readouts['priors'],
-            self._readouts['means'],
-            self._readouts['std_deviations_raw'],
-            self._holders['_delta_weights']
+            self._readouts['priors'], self._readouts['means'],
+            self._readouts['std_deviations'], self._holders['_delta_weights']
         )
-        self._readouts['raw_prediction'] = trajectory
+        self._readouts['raw_prediction'] = tf.cast(trajectory, tf.float32)
 
     def _get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
@@ -91,9 +76,29 @@ class TrajectoryMDN(MixtureDensityNetwork):
         fit        : output quantity used (str in {'likelihood', 'trajectory'})
         """
         feed_dict = super()._get_feed_dict(input_data, targets, keep_prob)
+        # If needed, generate a delta weights matrix and set it to be fed.
         if fit == 'trajectory':
-            weights = build_dynamic_weights_matrix(
-                len(input_data), window=5, complete=True
+            # Build a weights matrix producing delta features.
+            delta = build_dynamic_weights_matrix(len(input_data), window=5)
+            # Zero-pad the matrix to fit the trajectory generation algorithm.
+            n_targets = self.n_targets // 3
+            identity = scipy.sparse.identity(n_targets)
+            zeros = scipy.sparse.coo_matrix((n_targets, n_targets))
+            delta = scipy.sparse.vstack([
+                scipy.sparse.hstack([
+                    coeff * identity if coeff != 0 else zeros for coeff in row
+                ])
+                for row in delta
+            ])
+            # Build the full matrix of weights for static and dynamic features.
+            weights = scipy.sparse.vstack([
+                scipy.sparse.identity(n_targets * len(input_data)),
+                delta, delta.dot(delta)
+            ])
+            # Build a sparse tensor out of the weights matrix and feed it.
+            weights_tensor = tf.SparseTensorValue(
+                indices=np.array([weights.row, weights.col]).T,
+                values=weights.data, dense_shape=weights.shape
             )
-            feed_dict[self._holders['_delta_weights']] = weights
+            feed_dict[self._holders['_delta_weights']] = weights_tensor
         return feed_dict
