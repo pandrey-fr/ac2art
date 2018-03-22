@@ -3,8 +3,6 @@
 """Class implementing Trajectory Mixture Density Networks."""
 
 import tensorflow as tf
-import scipy.sparse
-import numpy as np
 
 from data.commons.enhance import build_dynamic_weights_matrix
 from neural_networks.components.mlpg import (
@@ -53,7 +51,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """Build the instance's placeholders."""
         super()._build_placeholders()
         self._holders['_delta_weights'] = (
-            tf.sparse_placeholder(tf.float64, [None, None])
+            tf.placeholder(tf.float64, [None, None])
         )
 
     @onetimemethod
@@ -78,27 +76,8 @@ class TrajectoryMDN(MixtureDensityNetwork):
         feed_dict = super()._get_feed_dict(input_data, targets, keep_prob)
         # If needed, generate a delta weights matrix and set it to be fed.
         if fit == 'trajectory':
-            # Build a weights matrix producing delta features.
-            delta = build_dynamic_weights_matrix(len(input_data), window=5)
-            # Zero-pad the matrix to fit the trajectory generation algorithm.
-            n_targets = self.n_targets // 3
-            identity = scipy.sparse.identity(n_targets)
-            zeros = scipy.sparse.coo_matrix((n_targets, n_targets))
-            delta = scipy.sparse.vstack([
-                scipy.sparse.hstack([
-                    coeff * identity if coeff != 0 else zeros for coeff in row
-                ])
-                for row in delta
-            ])
-            # Build the full matrix of weights for static and dynamic features.
-            weights = scipy.sparse.vstack([
-                scipy.sparse.identity(n_targets * len(input_data)),
-                delta, delta.dot(delta)
-            ])
-            # Build a sparse tensor out of the weights matrix and feed it.
-            weights_tensor = tf.SparseTensorValue(
-                indices=np.array([weights.row, weights.col]).T,
-                values=weights.data, dense_shape=weights.shape
+            weights = build_dynamic_weights_matrix(
+                len(input_data), window=5, complete=True
             )
-            feed_dict[self._holders['_delta_weights']] = weights_tensor
+            feed_dict[self._holders['_delta_weights']] = weights
         return feed_dict

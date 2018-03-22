@@ -8,6 +8,40 @@ from neural_networks.components.gaussian import gaussian_density
 from neural_networks.utils import check_positive_int
 
 
+def generate_univariate_trajectory(means, stds, weights):
+    """Generate a trajectory out of a time sequence of gaussian parameters.
+
+    The algorithm used is taken from Tokuda, K. et alii (2000). Speech
+    Parameter Generation Algorithms for HMM-based speech synthesis. It
+    aims at generating the most likely trajectory sequence based on
+    gaussian parameters fitted to an input sequence of some kind.
+
+    means   : time sequence of means (1-D tensor)
+    stds    : time sequence of standard deviations (1-D tensor)
+    weights : matrix of weights to derive successive orders
+              of dynamic features out of static ones (2-D tensor)
+
+    The means and standard deviations should consist of the time
+    sequence of parameters for static features first, followed by the
+    time sequence of delta features parameters and finally by that of
+    delta delta features parameters.
+    """
+    # Long but explicit function name; pylint: disable=invalid-name
+    # Test arguments' rank validity.
+    tf.assert_rank(means, 1)
+    tf.assert_rank(stds, 1)
+    tf.assert_rank(weights, 2)
+    # Compute the terms of the parameters generation system.
+    inv_stds = tf.matrix_diag(1 / (tf.square(stds) + 1e-30))
+    timed_variance = tf.matmul(tf.matrix_transpose(weights), inv_stds)
+    left_term = tf.matmul(timed_variance, weights)
+    right_term = tf.matmul(timed_variance, tf.expand_dims(means, 1))
+    # Solve the system using cholesky decomposition.
+    static_features = tf.cholesky_solve(tf.cholesky(left_term), right_term)
+    # Add dynamic features to the predicted static ones and return them.
+    return tf.matmul(weights, static_features)
+
+
 def generate_trajectory_from_gaussian(means, stds, weights):
     """Generate a trajectory out of a time sequence of gaussian parameters.
 
@@ -16,44 +50,41 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     aims at generating the most likely trajectory sequence based on
     gaussian parameters fitted to an input sequence of some kind.
 
-    means   : sequence of multivariate means (2-D tensor)
-    stds    : sequence of dimension-wise standard deviations (2-D tensor)
+    means   : time sequence of multivariate means (2-D tensor)
+    stds    : time sequence of dimension-wise standard deviations (2-D tensor)
     weights : matrix of weights to derive successive orders
-              of dynamic features out of static ones (2-D sparse tensor)
+              of dynamic features out of static ones (2-D tensor)
 
-    Each row of means must include means associated with (in that order)
-    the static features, the first-order dynamic features and the second-
-    order ones.
+    The means and standard deviations should be organized as matrices
+    where each row represents a given time, while the columns comprise
+    the K parameters associated with static features, followed by those
+    associated with the delta features and finally those associated with
+    the delta delta features.
     """
     # Long but explicit function name; pylint: disable=invalid-name
     # Test arguments' rank validity.
     tf.assert_rank(means, 2)
     tf.assert_rank(stds, 2)
+    tf.assert_rank(weights, 2)
     tf.assert_equal(means.shape[1], stds.shape[1])
-    # Reshape the means and standard deviations tensors. Transpose the weights.
+    # Pile up the static and dynamic parameters.
     n_targets = means.shape[1].value // 3
-    def flatten(tensor):
-        """Flatten a 2-D moments tensor."""
+    def stack_parameters(tensor):
+        """Pile up the values related to static, delta and delta targets."""
         return tf.concat([
-            tf.reshape(tensor[:, i:i + n_targets], (-1,))
+            tensor[:, i:i + n_targets]
             for i in range(0, 3 * n_targets, n_targets)
         ], axis=0)
-    means = tf.expand_dims(flatten(means), 1)
-    inv_stds = tf.matrix_diag(1 / (tf.square(flatten(stds)) + 1e-30))
-    weights_tr = tf.sparse_transpose(weights)
-    # Compute the terms of the parameters generation system.
-    timed_variance = tf.sparse_tensor_dense_matmul(weights_tr, inv_stds)
-    left_term = tf.matrix_transpose(
-        tf.sparse_tensor_dense_matmul(weights_tr, tf.matrix_transpose(timed_variance))
-    )
-    right_term = tf.matmul(timed_variance, means)
-    # Solve the system using cholesky decomposition.
-    static_features = tf.cholesky_solve(tf.cholesky(left_term), right_term)
-    # Add dynamic features to the predicted static ones and return them.
-    features = tf.sparse_tensor_dense_matmul(weights, static_features)
-    return tf.concat(
-        tf.unstack(tf.reshape(features, (3, -1, n_targets))), axis=1
-    )
+    means = stack_parameters(means)
+    stds = stack_parameters(stds)
+    # Generate the most likely trajectory for each target dimension.
+    features = tf.concat([
+        generate_univariate_trajectory(means[:, k], stds[:, k], weights)
+        for k in range(n_targets)
+    ], axis=1)
+    # Properly reshape the results and return them.
+    stacks = tf.unstack(tf.reshape(features, (3, -1, n_targets)))
+    return tf.concat(stacks, axis=1)
 
 
 def generate_trajectory_from_gaussian_mixture(
