@@ -20,37 +20,6 @@ RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
 NEW_FOLDER = CONSTANTS['mngu0_processed_folder']
 
 
-def adjust_filesets():
-    """Adjust the filesets lists provided with mngu0 to fit the raw data.
-
-    As the provided filesets lists are based on a extracted version of
-    the mngu0 corpus anterior to the splitting of some of the utterances
-    within the raw data, running this function is necessary so as to use
-    similar train, validation and test utterances of newly-processed data
-    as in most papers using this database.
-    """
-    # Load the full list of utterances.
-    utterances = get_utterances_list()
-    # Build the output 'filesets' folder if needed.
-    output_folder = os.path.join(NEW_FOLDER, 'filesets')
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
-    # Iterate over the three filesets to produce.
-    for set_name in ['train', 'validation', 'test']:
-        # Load the raw fileset list.
-        path = os.path.join(RAW_FOLDER, 'ema_filesets', set_name + 'files.txt')
-        with open(path) as file:
-            raw_fileset = [row.strip('\n') for row in file]
-        # Derive the correct fileset of newly processed utterances.
-        new_fileset = [
-            utterance for utterance in utterances
-            if utterance.strip('abcdef') in raw_fileset
-        ]
-        # Write the adjusted fileset to a txt file.
-        with open(os.path.join(output_folder, set_name + '.txt'), 'w') as file:
-            file.write('\n'.join(new_fileset))
-
-
 DOC_EXTRACT_DETAILS = """
     The extractations include the following:
       - optional resampling of the EMA data
