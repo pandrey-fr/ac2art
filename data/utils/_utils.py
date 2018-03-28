@@ -9,6 +9,7 @@ Note: some functions implemented here are copied or adapted
 
 import json
 import os
+import re
 
 import numpy as np
 import scipy.interpolate
@@ -28,6 +29,28 @@ def __load_constants():
 
 
 CONSTANTS = __load_constants()
+
+
+def alphanum_sort(string_list):
+    """Sort a list of strings using the alphanum algorithm.
+    Dave Koelle's Alphanum algorithm sorts names containing integer
+    in a more human-intuitive way than the usual Ascii-based way.
+    E.g. sorting ['2', '1', '10'] results in ['1', '2', '10'],
+         whereas built-in sorted() results in ['1', '10', '2'].
+    """
+    check_type_validity(string_list, list, 'string_list')
+    if not all(isinstance(string, str) for string in string_list):
+        raise TypeError('The provided list contains non-string elements.')
+    return sorted(string_list, key=_alphanum_key)
+
+
+def _alphanum_key(string):
+    """Parse a string into string and integer components."""
+    parity = int(string[0] in '0123456789')
+    return [
+        int(x) if i % 2 != parity else x
+        for i, x in enumerate(re.split('([0-9]+)', string)[parity:])
+    ]
 
 
 def check_batch_type(valid_type, **kwargs):
