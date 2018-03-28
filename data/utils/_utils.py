@@ -66,6 +66,20 @@ def check_type_validity(instance, valid_types, var_name):
         raise_type_error(var_name, valid_types, type(instance).__name__)
 
 
+def import_from_string(module, elements):
+    """Import and return elements from a module based on their names.
+
+    module   : name of the module from which to import elements (str)
+    elements : name or list of names of the elements to import
+    """
+    check_type_validity(module, str, 'module_name')
+    check_type_validity(elements, (list, str), elements)
+    lib = __import__(module, fromlist=module)
+    if isinstance(elements, str):
+        return getattr(lib, elements)
+    return tuple(getattr(lib, element) for element in elements)
+
+
 def raise_type_error(var_name, valid_types, var_type):
     """Raise a custom TypeError.
 
