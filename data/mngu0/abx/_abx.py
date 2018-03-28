@@ -186,7 +186,9 @@ def load_abx_scores(filename):
     path = os.path.join(ABX_FOLDER, filename + '_abx.csv')
     data = pd.read_csv(path, sep='\t')
     data['score'] *= data['n']
-    data['phones'] = data['phone_1'] + '_' + data['phone_2']
+    data['phones'] = data.apply(
+        lambda row: '_'.join(sorted([row['phone_1'], row['phone_2']])), axis=1
+    )
     scores = data.groupby('phones')[['score', 'n']].sum()
     scores['score'] /= scores['n']
     return scores
