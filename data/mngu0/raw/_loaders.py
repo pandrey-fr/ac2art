@@ -48,8 +48,8 @@ def load_ema(filename, columns_to_keep=None):
     columns_to_keep : optional list of columns to keep
 
     Return a 2-D numpy.ndarray where each row represents a sample (recorded
-    at 200Hz) and each column is represents a 1-D coordinate of an articulator.
-    Also return the list of column names.
+    at 200Hz) and each column is represents a 1-D coordinate of an articulator,
+    in centimeter. Also return the list of column names.
     """
     # Import data from file.
     path = os.path.join(RAW_FOLDER, 'ema_basic_data/', filename + '.ema')
