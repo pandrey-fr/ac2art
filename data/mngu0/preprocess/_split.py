@@ -209,9 +209,7 @@ def split_dataset(pct_train=.7, limit=9, seed=None):
     filesets = build_initial_split(indexer)
     filesets = adjust_filesets(filesets, pct_train, indexer)
     # Write the produced filesets to txt files.
-    store_filesets(
-        dict(zip(('train_new', 'validation_new', 'test_new'), filesets))
-    )
+    store_filesets(dict(zip(('train', 'validation', 'test'), filesets)))
 
 
 def adjust_provided_filesets():
@@ -233,7 +231,7 @@ def adjust_provided_filesets():
         with open(path) as file:
             raw_fileset = [row.strip('\n') for row in file]
         # Derive the correct fileset of newly processed utterances.
-        filesets[set_name] = [
+        filesets[set_name + '_initial'] = [
             utt for utt in utterances if utt.strip('abcdef') in raw_fileset
         ]
     # Write the filesets to txt files.
