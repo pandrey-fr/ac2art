@@ -119,7 +119,7 @@ class Wav:
                       delta and deltadelta LPC and energy features
                       (bool, default False)
         """
-        lpc = linear_predictive_coding(self.frames, n_coeff)
+        lpc, _ = linear_predictive_coding(self.frames, n_coeff)
         if static_only:
             return lpc
         return add_dynamic_features(
@@ -137,7 +137,7 @@ class Wav:
                       (bool, default False)
         """
         # Compute n + 1 LPC coefficients and convert them to LSF.
-        lpc, _ = self.get_lpc(n_coeff + 1, static_only=True)
+        lpc = self.get_lpc(n_coeff + 1, static_only=True)
         lsf = lpc_to_lsf(lpc)
         # Replace NaN values with zero.
         lsf[np.isnan(lsf)] = 0
