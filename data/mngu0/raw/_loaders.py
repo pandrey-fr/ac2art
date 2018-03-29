@@ -4,13 +4,10 @@
 
 import os
 
-import numpy as np
 
 from data.commons.wav import Wav
 from data.mngu0.raw import EstTrack
-from data.utils import (
-    check_type_validity, interpolate_missing_values, CONSTANTS
-)
+from data.utils import check_type_validity, CONSTANTS
 
 
 RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
@@ -42,7 +39,7 @@ def load_wav(filename, frame_size=200, hop_time=5):
 
 
 def load_ema(filename, columns_to_keep=None):
-    """Load data from a mngu0 EMA (.ema) file. Interpolate any missing values.
+    """Load data from a mngu0 EMA (.ema) file.
 
     filename        : name of the utterance whose raw EMA data to load (str)
     columns_to_keep : optional list of columns to keep
@@ -63,11 +60,6 @@ def load_ema(filename, columns_to_keep=None):
         column_names = columns_to_keep
     else:
         ema_data = track.data
-    # Interpolate NaN values using cubic splines.
-    ema_data = np.concatenate([
-        interpolate_missing_values(data_column).reshape(-1, 1)
-        for data_column in np.transpose(ema_data)
-    ], axis=1)
     # Return the EMA data and a list of columns names.
     return ema_data, column_names
 

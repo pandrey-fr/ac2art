@@ -11,7 +11,8 @@ import resampy
 
 from data.commons.enhance import add_dynamic_features
 from data.utils import (
-    check_positive_int, check_type_validity, CONSTANTS, import_from_string
+    check_positive_int, check_type_validity, CONSTANTS,
+    interpolate_missing_values, import_from_string
 )
 
 
@@ -136,8 +137,13 @@ def build_extractor(dataset, initial_sampling_rate):
             (labels[-2][0] if labels[-1][1] == '#' else labels[-1][0])
             * ema_sampling_rate
         ))
-        # Load EMA data and optionally resample it.
+        # Load EMA data and interpolate NaN values using cubic splines.
         ema, _ = load_ema(utterance, articulators_list)
+        ema = np.concatenate([
+            interpolate_missing_values(data_column).reshape(-1, 1)
+            for data_column in np.transpose(ema)
+        ], axis=1)
+        # Optionally resample the EMA data.
         if ema_sampling_rate != initial_sampling_rate:
             ema = resampy.resample(
                 ema, sr_orig=initial_sampling_rate, sr_new=ema_sampling_rate,
