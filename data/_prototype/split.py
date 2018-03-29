@@ -111,7 +111,7 @@ def adjust_filesets(filesets, pct_train, indexer):
     deprive the initial fileset from a triphone of interest.
     """
     # Compute theoretical sizes of the filesets.
-    total = sum(len(filesets) for fileset in filesets)
+    total = sum(len(fileset) for fileset in filesets)
     n_obs = [0] * 3
     n_obs[0] = int(np.ceil(total * pct_train))
     n_obs[1] = int(np.floor((total - n_obs[0]) / 2))

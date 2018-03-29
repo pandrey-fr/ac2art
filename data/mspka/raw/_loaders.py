@@ -92,5 +92,5 @@ def load_phone_labels(filename):
         RAW_FOLDER, speaker + '_1.0.0', 'lab_1.0.0', filename + '.lab'
     )
     with open(path) as file:
-        labels = [row.split(' ') for row in file]
+        labels = [row.strip('\n').split(' ') for row in file]
     return [(float(label[0]), label[2]) for label in labels]

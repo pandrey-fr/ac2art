@@ -31,7 +31,7 @@ def build_h5features_extractor(corpus):
 
         See `extract_h5_features` documentation for arguments.
         """
-        nonlocal load_audio, load_ema
+        nonlocal load_acoustic, load_ema
         # Check that provided arguments make sense.
         if audio_features is None and ema_features is None:
             raise RuntimeError('No features were set to be included.')
