@@ -4,4 +4,4 @@
 
 from ._extract import extract_all_utterances, extract_utterance_data
 from ._normalize import compute_moments, normalize_files
-from ._split import adjust_provided_filesets, split_dataset
+from ._split import adjust_provided_filesets, split_corpus
