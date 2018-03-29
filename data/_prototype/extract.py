@@ -37,10 +37,10 @@ DOC_EXTRACT_ARGUMENTS = """
     articulators_list : optional list of raw EMA data columns to keep
                         (default None, implying twelve, detailed below)
     ema_sampling_rate : sample rate of the EMA data to use, in Hz
-                        (int, default {0})
+                        (int, default 200)
     audio_frames_size : number of acoustic samples to include per frame
-                        (int, default {1})
-    {2}
+                        (int, default 200)
+    {0}
 """
 
 
@@ -60,8 +60,7 @@ def build_arguments_checker(dataset, default_articulators):
 
         Return the definitive values of the latter two arguments.
         """
-        nonlocal default_articulators
-        nonlocal new_folder
+        nonlocal default_articulators, new_folder
         # Check positive integer arguments.
         check_positive_int(n_coeff, 'n_coeff')
         check_positive_int(ema_sampling_rate, 'ema_sampling_rate')
@@ -123,11 +122,8 @@ def build_extractor(dataset, initial_sampling_rate):
         the same arguments when using the former while ensuring arguments
         are being checked when using the latter.
         """
-        nonlocal initial_sampling_rate
-        nonlocal load_ema
-        nonlocal load_phone_labels
-        nonlocal load_wav
-        nonlocal new_folder
+        nonlocal initial_sampling_rate, new_folder
+        nonlocal load_ema, load_phone_labels, load_wav
         # Load phone labels and compute frames index so as to trim silences.
         labels = load_phone_labels(utterance)
         start_frame = int(np.floor(
@@ -170,30 +166,25 @@ def build_extractor(dataset, initial_sampling_rate):
 
 
 def build_features_extraction_functions(
-        dataset, initial_sampling_rate, default_frames_size,
-        default_articulators, docstring_details=''
+        dataset, initial_sampling_rate, default_articulators, docstring_details
     ):
     """Define and return raw features extraction functions for a dataset.
 
     dataset               : name of the dataset whose features to extract (str)
     initial_sampling_rate : initial sampling rate of the EMA data, in Hz (int)
-    default_frames_size   : default frames size to use (positive int)
     default_articulators  : default articulators to keep (list of str)
-    docstring_details     : optional docstring complement for the functions
+    docstring_details     : docstring complement for the returned functions
     """
     # Long but explicit function name; pylint: disable=invalid-name
     # Define auxiliary functions through wrappers.
     control_arguments = build_arguments_checker(dataset, default_articulators)
     extract_data = build_extractor(dataset, initial_sampling_rate)
     # Format the functions' arguments' docstring.
-    arguments_docstring = DOC_EXTRACT_ARGUMENTS.format(
-        initial_sampling_rate, default_frames_size, docstring_details
-    )
+    arguments_docstring = DOC_EXTRACT_ARGUMENTS.format(docstring_details)
     # Define a function extracting features from a single utterance.
     def extract_utterance_data(
             utterance, audio_forms=None, n_coeff=12, articulators_list=None,
-            ema_sampling_rate=initial_sampling_rate,
-            audio_frames_size=default_frames_size
+            ema_sampling_rate=200, audio_frames_size=200
         ):
         """Extract acoustic and articulatory data of a given {0} utterance.
         {1}
@@ -205,8 +196,7 @@ def build_features_extraction_functions(
 
     utterance         : name of the utterance to process (str){2}
         """
-        nonlocal control_arguments
-        nonlocal extract_data
+        nonlocal control_arguments, extract_data
         # Check arguments, assign default values and build output folders.
         check_type_validity(utterance, str, 'utterance')
         audio_forms, articulators_list = control_arguments(
@@ -229,8 +219,7 @@ def build_features_extraction_functions(
     # Define a function extracting features from all utterances.
     def extract_all_utterances(
             audio_forms=None, n_coeff=12, articulators_list=None,
-            ema_sampling_rate=initial_sampling_rate,
-            audio_frames_size=default_frames_size
+            ema_sampling_rate=initial_sampling_rate, audio_frames_size=200
         ):
         """Extract acoustic and articulatory data of each {0} utterance.
         {1}
@@ -241,9 +230,7 @@ def build_features_extraction_functions(
         of the kind of features it contains.
         {2}
         """
-        nonlocal control_arguments
-        nonlocal get_utterances_list
-        nonlocal extract_data
+        nonlocal control_arguments, extract_data, get_utterances_list
         # Check arguments, assign default values and build output folders.
         audio_forms, articulators_list = control_arguments(
             audio_forms, n_coeff, articulators_list,

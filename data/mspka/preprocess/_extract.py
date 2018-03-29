@@ -24,7 +24,7 @@ MSPKA_DEFAULT_ARTICULATORS = [
 # Define functions through wrappers; pylint: disable=invalid-name
 extract_utterance_data, extract_all_utterances = (
     build_features_extraction_functions(
-        dataset='mspka', initial_sampling_rate=400, default_frames_size=200,
+        dataset='mspka', initial_sampling_rate=400,
         default_articulators=MSPKA_DEFAULT_ARTICULATORS,
         docstring_details=MSPKA_DOCSTRING_DETAILS
     )
