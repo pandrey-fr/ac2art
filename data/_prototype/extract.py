@@ -16,29 +16,30 @@ from data.utils import (
 
 
 DOC_EXTRACT_DETAILS = """
-The extractations include the following:
-  - optional resampling of the EMA data
-  - framing of audio data to align acoustic and articulatory records
-  - production of various acoustic features based on the audio data
-  - trimming of silences at the beginning and end of each utterance
+    The extractations include the following:
+      - optional resampling of the EMA data
+      - framing of audio data to align acoustic and articulatory records
+      - production of various acoustic features based on the audio data
+      - trimming of silences at the beginning and end of each utterance
 """
 
 
 DOC_EXTRACT_ARGUMENTS = """
-audio_forms       : optional list of representations of the audio data
-                    to produce, among {'energy', 'lsf', 'lpc', 'mfcc'}
-                    (list of str, default None implying all of them)
-n_coeff           : number of static coefficients to compute for each
-                    representation of the audio data (int, default 12)
-                    Note : dynamic features as well as static and
-                    dynamic energy will be included as well with
-                    each of the audio forms.
-articulators_list : optional list of raw EMA data columns to keep
-                    (default None, implying twelve, detailed below)
-ema_sampling_rate : sample rate of the EMA data to use, in Hz
-                    (int, default 200)
-audio_frames_size : number of acoustic samples to include per frame
-                    (int, default 200)
+    audio_forms       : optional list of representations of the audio data
+                        to produce, among {{'lsf', 'lpc', 'mfcc'}}
+                        (list of str, default None implying all of them)
+    n_coeff           : number of static coefficients to compute for each
+                        representation of the audio data (int, default 12)
+                        Note : dynamic features as well as static and
+                        dynamic energy will be included as well with
+                        each of the audio forms.
+    articulators_list : optional list of raw EMA data columns to keep
+                        (default None, implying twelve, detailed below)
+    ema_sampling_rate : sample rate of the EMA data to use, in Hz
+                        (int, default {0})
+    audio_frames_size : number of acoustic samples to include per frame
+                        (int, default {1})
+    {2}
 """
 
 
@@ -79,7 +80,9 @@ def build_arguments_checker(dataset, default_articulators):
                 check_type_validity(audio_forms, list, 'audio_forms')
             invalid = [name for name in audio_forms if name not in _audio_forms]
             if invalid:
-                raise ValueError("Unknown audio representation(s): %s." % invalid)
+                raise ValueError(
+                    "Unknown audio representation(s): %s." % invalid
+                )
         # Build necessary folders to store the processed data.
         for name in audio_forms + ['ema']:
             dirname = os.path.join(new_folder, name)
@@ -176,6 +179,10 @@ def build_features_extraction_functions(
     # Define auxiliary functions through wrappers.
     control_arguments = build_arguments_checker(dataset, default_articulators)
     extract_data = build_extractor(dataset, initial_sampling_rate)
+    # Format the functions' arguments' docstring.
+    arguments_docstring = DOC_EXTRACT_ARGUMENTS.format(
+        initial_sampling_rate, default_frames_size, docstring_details
+    )
     # Define a function extracting features from a single utterance.
     def extract_utterance_data(
             utterance, audio_forms=None, n_coeff=12, articulators_list=None,
@@ -190,11 +197,11 @@ def build_features_extraction_functions(
         The file name is the utterance's name, extended with an indicator of
         the kind of features it contains.
 
-        utterance         : name of the utterance to process (str){2}
+    utterance         : name of the utterance to process (str){2}
         """
         nonlocal control_arguments
         nonlocal extract_data
-        # Check arguments validity, assign default values and build output folders.
+        # Check arguments, assign default values and build output folders.
         check_type_validity(utterance, str, 'utterance')
         audio_forms, articulators_list = control_arguments(
             audio_forms, n_coeff, articulators_list,
@@ -207,7 +214,7 @@ def build_features_extraction_functions(
         )
     # Adjust the function's docstring.
     extract_utterance_data.__doc__ = extract_utterance_data.__doc__.format(
-        dataset, DOC_EXTRACT_DETAILS, DOC_EXTRACT_ARGUMENTS + docstring_details
+        dataset, DOC_EXTRACT_DETAILS, arguments_docstring
     )
     # Import the get_utterances_list dependency function.
     get_utterances_list = import_from_string(
@@ -231,7 +238,7 @@ def build_features_extraction_functions(
         nonlocal control_arguments
         nonlocal get_utterances_list
         nonlocal extract_data
-        # Check arguments validity, assign default values and build output folders.
+        # Check arguments, assign default values and build output folders.
         audio_forms, articulators_list = control_arguments(
             audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_size
@@ -247,7 +254,7 @@ def build_features_extraction_functions(
             sys.stdout.write('\033[F')
     # Adjust the function's docstring.
     extract_all_utterances.__doc__ = extract_all_utterances.__doc__.format(
-        dataset, DOC_EXTRACT_DETAILS, DOC_EXTRACT_ARGUMENTS + docstring_details
+        dataset, DOC_EXTRACT_DETAILS, arguments_docstring
     )
     # Return the defined features extraction functions.
     return extract_utterance_data, extract_all_utterances
