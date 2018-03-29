@@ -11,7 +11,7 @@ import numpy as np
 
 from data.commons.abxpy import abxpy_pipeline, abxpy_task
 from data.mngu0.raw import load_phone_labels
-from data.mngu0.load import load_acoustic, load_ema, get_utterances_set
+from data.mngu0.load import load_acoustic, load_ema, get_utterances
 from data.utils import check_positive_int, check_type_validity, CONSTANTS
 
 
@@ -44,7 +44,7 @@ def extract_h5_features(
         audio_features, ema_features, inverter, dynamic_ema
     )
     # Load the list of utterances and process them iteratively.
-    utterances = get_utterances_set()
+    utterances = get_utterances()
     with h5f.Writer(output_file) as writer:
         for i in range(0, len(utterances), 100):
             # Load or compute the utterances list, features and time labels.
@@ -109,7 +109,7 @@ def make_itemfile(dataset=None):
 
     dataset : optional set name whose utterances to use (str)
     """
-    utterances = get_utterances_set(dataset)
+    utterances = get_utterances(dataset)
     name = 'mngu0_%sphones.item' % ('' if dataset is None else dataset + '_')
     output_file = os.path.join(ABX_FOLDER, name)
     columns = ['#file', 'onset', 'offset', '#phone', 'context']
