@@ -17,7 +17,7 @@ def build_normalization_functions(dataset):
         'data.%s.raw._loaders' % dataset, 'get_utterances_list'
     )
     # Wrap the normalization parameters computing function.
-    def compute_files_moments(file_type, store=True):
+    def compute_moments(file_type, store=True):
         """Compute files moments."""
         return _compute_moments(
             file_type, store, main_folder, get_utterances_list
@@ -26,12 +26,13 @@ def build_normalization_functions(dataset):
     def normalize_files(file_type, norm_type):
         """Normalize a set of files."""
         return _normalize_files(
-            file_type, norm_type, main_folder, get_utterances_list
+            file_type, norm_type, main_folder,
+            get_utterances_list, compute_moments
         )
     # Adjust the functions' docstrings and return them.
-    compute_files_moments.__doc__ = _compute_moments.__doc__.format(dataset)
+    compute_moments.__doc__ = _compute_moments.__doc__.format(dataset)
     normalize_files.__doc__ = _normalize_files.__doc__.format(dataset)
-    return compute_files_moments, normalize_files
+    return compute_moments, normalize_files
 
 
 def _compute_moments(file_type, store, main_folder, get_utterances_list):
@@ -77,7 +78,9 @@ def _compute_moments(file_type, store, main_folder, get_utterances_list):
     return moments
 
 
-def _normalize_files(file_type, norm_type, main_folder, get_utterances_list):
+def _normalize_files(
+        file_type, norm_type, main_folder, get_utterances_list, compute_moments
+    ):
     """Normalize pre-extracted {0} data of a given type.
 
     Normalization includes de-meaning (based on dataset-wide mean)
@@ -96,7 +99,7 @@ def _normalize_files(file_type, norm_type, main_folder, get_utterances_list):
     if os.path.isfile(path):
         moments = np.load(path).tolist()
     else:
-        moments = compute_files_moments(file_type, store=True)
+        moments = compute_moments(file_type, store=True)
     means = moments['global_means']
     norm = moments['global_%s' % norm_type] * (4 if norm_type == 'stds' else 1)
     # Build the output directory, if needed.

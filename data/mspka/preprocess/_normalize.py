@@ -6,4 +6,4 @@ from data._prototype.normalize import build_normalization_functions
 
 
 # Define functions through wrappers; pylint: disable=invalid-name
-compute_files_moments, normalize_files = build_normalization_functions('mspka')
+compute_moments, normalize_files = build_normalization_functions('mspka')
