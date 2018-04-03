@@ -5,8 +5,7 @@
 import os
 
 
-from data.commons.wav import Wav
-from data.mngu0.raw import EstTrack
+from data.commons.loaders import EstTrack, Wav
 from data.utils import check_type_validity, CONSTANTS
 
 
@@ -35,7 +34,7 @@ def load_wav(filename, frame_size=200, hop_time=5):
     used in most papers relying on mngu0 data.
     """
     path = os.path.join(RAW_FOLDER, 'wav_16kHz/', filename + '.wav')
-    return Wav(path, frame_size, hop_time)
+    return Wav(path, 16000, frame_size, hop_time)
 
 
 def load_ema(filename, columns_to_keep=None):

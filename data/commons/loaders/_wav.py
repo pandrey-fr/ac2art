@@ -26,17 +26,21 @@ class Wav:
       - Root mean square energy, using 'get_rms_energy'.
     """
 
-    def __init__(self, filename, frame_size=200, hop_time=5):
+    def __init__(
+            self, filename, sampling_rate=16000, frame_size=200, hop_time=5
+        ):
         """Load the .wav data and reframe it.
 
-        filename   : path to the .wav audio file.
-        frame_size : number of samples per frame (int, default 200)
-        hop_time   : number of milliseconds between each frame's
-                     start time (int, default 5)
+        filename    : path to the .wav audio file.
+        sample_rate : sampling rate of the signal, in Hz; resampling
+                      will be used if needed (int, default 16000)
+        frame_size  : number of samples per frame (int, default 200)
+        hop_time    : number of milliseconds between each frame's
+                      start time (int, default 5)
         """
         check_type_validity(filename, str, 'filename')
         self.filename = os.path.abspath(filename)
-        data, sampling_rate = librosa.load(self.filename)
+        data, sampling_rate = librosa.load(self.filename, sr=sampling_rate)
         self.signal = data
         self.sampling_rate = sampling_rate
         self.frames = np.array([])

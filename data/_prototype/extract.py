@@ -64,8 +64,6 @@ def build_arguments_checker(dataset, default_articulators):
         # Check positive integer arguments.
         check_positive_int(n_coeff, 'n_coeff')
         check_positive_int(ema_sampling_rate, 'ema_sampling_rate')
-        if 1000 % ema_sampling_rate:
-            raise ValueError("'ema_sampling_rate' must be a divisor of 1000.")
         check_positive_int(audio_frames_size, 'audio_frames_size')
         # Check audio_forms argument validity.
         _audio_forms = ['lpc', 'lsf', 'mfcc']
@@ -150,7 +148,7 @@ def build_extractor(dataset, initial_sampling_rate):
         np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
         # Load the audio waveform data, structuring it into frames.
         wav = load_wav(
-            utterance, audio_frames_size, hop_time=int(1000 / ema_sampling_rate)
+            utterance, audio_frames_size, hop_time=1000 / ema_sampling_rate
         )
         # Compute each audio features set, trim its edge silences and save it.
         for name in audio_forms:

@@ -6,7 +6,7 @@ import os
 
 import pandas as pd
 
-from data.commons.wav import Wav
+from data.commons.loaders import Wav
 from data.utils import alphanum_sort, check_type_validity, CONSTANTS
 
 
@@ -29,13 +29,13 @@ def get_utterances_list(speaker=None):
     ])
 
 
-def load_wav(filename, frame_size=200, hop_time=5):
+def load_wav(filename, frame_size=200, hop_time=2):
     """Load data from a mspka waveform (.wav) file.
 
     filename   : name of the utterance whose audio data to load (str)
     frame_size : number of samples to include per frame (int, default 200)
     hop_time   : duration of the shift step between frames, in milliseconds
-                 (int, default 5)
+                 (int, default 2)
 
     Return a `data.commons.Wav` instance, containing the audio waveform
     and an array of frames grouping samples based on the `frame_size`
@@ -46,10 +46,9 @@ def load_wav(filename, frame_size=200, hop_time=5):
     path = os.path.join(
         RAW_FOLDER, speaker + '_1.0.0', 'wav_1.0.0', filename + '.wav'
     )
-    return Wav(path, frame_size, hop_time)
+    return Wav(path, 22050, frame_size, hop_time)
 
 
-# to do: Interpolate any missing values.
 def load_ema(filename, columns_to_keep=None):
     """Load data from a mspka EMA (.ema) file.
 
@@ -92,5 +91,7 @@ def load_phone_labels(filename):
         RAW_FOLDER, speaker + '_1.0.0', 'lab_1.0.0', filename + '.lab'
     )
     with open(path) as file:
-        labels = [row.strip('\n').split(' ') for row in file]
-    return [(float(label[0]), label[2]) for label in labels]
+        labels = [
+            row.strip('\n').replace(' sil ', ' # ').split(' ') for row in file
+        ]
+    return [(float(label[1]), label[2]) for label in labels]

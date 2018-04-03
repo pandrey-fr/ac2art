@@ -1,14 +1,14 @@
 # coding: utf-8
 
-"""Class to handle EST Track files from the mngu0 database."""
+"""Class to handle EST Track files used in the Mocha-Timit and mngu0 corpora."""
 
 import numpy as np
 
-from data.commons import AbstractDataLoader
+from data.commons.loaders import AbstractDataLoader
 
 
 class EstTrack(AbstractDataLoader):
-    """Class to load data from EST Track files in the mngu0 database.
+    """Class to load data from EST Track files.
 
     EST Track files include .ema and .lsf files, respectively recording
     EMA articulatory data and pre-processed LSF representations of acoustic
