@@ -92,7 +92,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     def _build_readout_layer(self):
         """Build the readout layer of the multilayer perceptron."""
         # Build the readout layer.
-        self._layers['readout_layer'] = DenseLayer(
+        self.layers['readout_layer'] = DenseLayer(
             self._top_layer.output, self.n_targets, 'identity'
         )
 
@@ -104,32 +104,32 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         This method should be overridden by subclasses to define more
         complex predictions.
         """
-        self._readouts['raw_prediction'] = self._layers['readout_layer'].output
+        self.readouts['raw_prediction'] = self.layers['readout_layer'].output
 
     @onetimemethod
     def _build_error_readouts(self):
         """Build error readouts of the network's prediction."""
         readouts = build_rmse_readouts(
-            self._readouts['prediction'], self._holders['targets']
+            self.readouts['prediction'], self.holders['targets']
         )
-        self._readouts.update(readouts)
+        self.readouts.update(readouts)
 
     @onetimemethod
     def _build_training_function(self):
         """Build the train step function of the network."""
         # Build a function optimizing the neural layers' weights.
         fit_weights = minimize_safely(
-            self.optimizer, loss=self._readouts['rmse'],
+            self.optimizer, loss=self.readouts['rmse'],
             var_list=self._neural_weights, reduce_fn=tf.reduce_max
         )
         # If appropriate, build a function optimizing the filters' cutoff.
         if self._filter_cutoffs:
             fit_filter = tf.train.GradientDescentOptimizer(.9).minimize(
-                self._readouts['rmse'], var_list=self._filter_cutoffs
+                self.readouts['rmse'], var_list=self._filter_cutoffs
             )
-            self._training_function = [fit_weights, fit_filter]
+            self.training_function = [fit_weights, fit_filter]
         else:
-            self._training_function = fit_weights
+            self.training_function = fit_weights
 
     def score(self, input_data, targets):
         """Return the root mean square prediction error of the network.
@@ -138,4 +138,4 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         targets    : true targets associated with the input dataset
         """
         feed_dict = self._get_feed_dict(input_data, targets)
-        return self._readouts['rmse'].eval(feed_dict, self.session)
+        return self.readouts['rmse'].eval(feed_dict, self.session)

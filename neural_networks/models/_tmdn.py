@@ -50,7 +50,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
     def _build_placeholders(self):
         """Build the instance's placeholders."""
         super()._build_placeholders()
-        self._holders['_delta_weights'] = (
+        self.holders['_delta_weights'] = (
             tf.placeholder(tf.float64, [None, None])
         )
 
@@ -58,10 +58,10 @@ class TrajectoryMDN(MixtureDensityNetwork):
     def _build_initial_prediction(self):
         """Build a trajectory prediction using the MLPG algorithm."""
         trajectory = generate_trajectory_from_gaussian_mixture(
-            self._readouts['priors'], self._readouts['means'],
-            self._readouts['std_deviations'], self._holders['_delta_weights']
+            self.readouts['priors'], self.readouts['means'],
+            self.readouts['std_deviations'], self.holders['_delta_weights']
         )
-        self._readouts['raw_prediction'] = tf.cast(trajectory, tf.float32)
+        self.readouts['raw_prediction'] = tf.cast(trajectory, tf.float32)
 
     def _get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
@@ -79,5 +79,5 @@ class TrajectoryMDN(MixtureDensityNetwork):
             weights = build_dynamic_weights_matrix(
                 len(input_data), window=5, complete=True
             )
-            feed_dict[self._holders['_delta_weights']] = weights
+            feed_dict[self.holders['_delta_weights']] = weights
         return feed_dict

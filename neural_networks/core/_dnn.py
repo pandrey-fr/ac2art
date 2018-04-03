@@ -55,10 +55,10 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         self._init_arguments.update(kwargs)
         self._validate_args()
         # Declare common attributes to contain the network's structure.
-        self._holders = {}
-        self._layers = OrderedDict()
-        self._readouts = {}
-        self._training_function = None
+        self.holders = {}
+        self.layers = OrderedDict()
+        self.readouts = {}
+        self.training_function = None
         # Build the network's tensorflow architecture.
         self._build_placeholders()
         self._build_hidden_layers()
@@ -95,15 +95,14 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def architecture(self):
         """Dict describing the network's architecture."""
         return OrderedDict([
-            (name, layer.configuration)
-            for name, layer in self._layers.items()
+            (name, layer.configuration) for name, layer in self.layers.items()
         ])
 
     def get_values(self):
         """Return the current values of the network's layers' parameters."""
         return {
             name: layer.get_values(self.session)
-            for name, layer in self._layers.items()
+            for name, layer in self.layers.items()
         }
 
     @property
@@ -113,7 +112,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             layer.weights if isinstance(layer, AbstractRNN) else (
                 (layer.weight, layer.bias) if layer.bias else layer.weight
             )
-            for layer in self._layers.values()
+            for layer in self.layers.values()
             if isinstance(layer, (AbstractRNN, NeuralLayer))
         ]
 
@@ -121,7 +120,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def _filter_cutoffs(self):
         """Return the cutoff tensors of all learnable filter layers."""
         return [
-            layer.cutoff for layer in self._layers.values()
+            layer.cutoff for layer in self.layers.values()
             if isinstance(layer, SignalFilter) and layer.learnable
         ]
 
@@ -162,7 +161,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @property
     def _top_layer(self):
         """Return the layer on top of the network's architecture."""
-        return self._layers[list(self._layers.keys())[-1]]
+        return self.layers[list(self.layers.keys())[-1]]
 
     @onetimemethod
     def _validate_args(self):
@@ -198,20 +197,20 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @onetimemethod
     def _build_placeholders(self):
         """Build the network's placeholders."""
-        self._holders['input'] = tf.placeholder(tf.float32, self.input_shape)
-        self._holders['targets'] = tf.placeholder(
+        self.holders['input'] = tf.placeholder(tf.float32, self.input_shape)
+        self.holders['targets'] = tf.placeholder(
             tf.float32, [self.input_shape[0], self.n_targets]
         )
-        self._holders['keep_prob'] = tf.placeholder(tf.float32, ())
+        self.holders['keep_prob'] = tf.placeholder(tf.float32, ())
 
     @onetimemethod
     def _build_hidden_layers(self):
         """Build the network's hidden layers."""
         hidden_layers = build_layers_stack(
-            self._holders['input'], self.layers_config,
-            self._holders['keep_prob'], check_config=False
+            self.holders['input'], self.layers_config,
+            self.holders['keep_prob'], check_config=False
         )
-        self._layers.update(hidden_layers)
+        self.layers.update(hidden_layers)
 
     @abstractmethod
     @onetimemethod
@@ -219,7 +218,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Build the network's readout layer.
 
         This method should add a 'readout_layer' element
-        on top of the `_layers` OrderedDict attribute.
+        on top of the `layers` OrderedDict attribute.
         """
         return NotImplemented
 
@@ -236,25 +235,25 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Build the network's initial prediction.
 
         This method should add a 'raw_prediction'
-        Tensor to the `_readouts` dict attribute.
+        Tensor to the `readouts` dict attribute.
         """
         return NotImplemented
 
     @onetimemethod
     def _build_refined_prediction(self):
         """Refine the network's initial prediction."""
-        prediction = self._readouts['raw_prediction']
+        prediction = self.readouts['raw_prediction']
         # Optionally de-normalize the initial prediction.
         if self.norm_params is not None:
             prediction *= self.norm_params
         # Optionally filter the prediction.
         if self.top_filter is not None:
-            self._layers['top_filter'] = list(
+            self.layers['top_filter'] = list(
                 build_layers_stack(prediction, [self.top_filter]).values()
             )[0]
-            prediction = self._layers['top_filter'].output
+            prediction = self.layers['top_filter'].output
         # Assign the refined prediction to the _readouts attribute.
-        self._readouts['prediction'] = prediction
+        self.readouts['prediction'] = prediction
 
     @abstractmethod
     @onetimemethod
@@ -262,7 +261,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Build error readouts of the network's prediction.
 
         This method should assign any tensorflow.Tensor to
-        the `_readouts` dict atttribute necessary to define
+        the `readouts` dict atttribute necessary to define
         the network's training function.
         """
         return NotImplemented
@@ -273,7 +272,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Build the train step function of the network.
 
         This method should assign a tensorflow operation
-        to the `_training_function` attribute.
+        to the `training_function` attribute.
         """
         return NotImplemented
 
@@ -285,11 +284,11 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         keep_prob  : probability to use for the dropout layers (default 1)
         """
         feed_dict = {
-            self._holders['input']: input_data,
-            self._holders['keep_prob']: keep_prob
+            self.holders['input']: input_data,
+            self.holders['keep_prob']: keep_prob
         }
         if targets is not None:
-            feed_dict[self._holders['targets']] = targets
+            feed_dict[self.holders['targets']] = targets
         return feed_dict
 
     def run_training_function(self, input_data, targets, keep_prob=1):
@@ -301,12 +300,12 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                      the training procedure (float in [0., 1.], default 1.)
         """
         feed_dict = self._get_feed_dict(input_data, targets, keep_prob)
-        self.session.run(self._training_function, feed_dict)
+        self.session.run(self.training_function, feed_dict)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
         feed_dict = self._get_feed_dict(input_data)
-        return self._readouts['prediction'].eval(feed_dict, self.session)
+        return self.readouts['prediction'].eval(feed_dict, self.session)
 
     @abstractmethod
     def score(self, input_data, targets):
@@ -360,8 +359,8 @@ def load_dumped_model(filename, model=None):
     # Check that the model's architecture is coherent with the dump.
     if model.architecture != config['architecture']:
         raise TypeError("Invalid network architecture.")
-    # Restore the model's weights. pylint: disable=protected-access
-    for name, layer in model._layers.items():
+    # Restore the model's weights.
+    for name, layer in model.layers.items():
         layer.set_values(config['values'][name], model.session)
     # If the model was instantiated within this function, return it.
     return model if new_model else None

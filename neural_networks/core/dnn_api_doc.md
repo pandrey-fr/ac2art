@@ -1,6 +1,6 @@
-[Public API]
+[Basic API]
 
-* Initialization and layers configuration (Public API, 1/3)
+* Initialization and layers configuration (Basic API, 1/3)
 
 - An `__init__` method allows the user to fully configure the
   network's architecture and specificities, noticeably through
@@ -24,7 +24,7 @@
   to instantiate the layer.
 
 
-* Training, predicting and scoring methods (Public API, 2/3)
+* Training, predicting and scoring methods (Basic API, 2/3)
 
 - The `run_training_function` should be used to train the model.
   It requires both some input data and the associated targets to
@@ -43,7 +43,7 @@
   values associated with it.
 
 
-* Saving, restoring and resetting the model (Public API, 3/3)
+* Saving, restoring and resetting the model (Basic API, 3/3)
 
 - The `save_model` method allows to save the network's weights as
   well as its full specification to a simple .npy file. The stored
@@ -78,7 +78,7 @@ by subclasses.
   to validate any non-basic `__init__` parameter they introduce.
 
 - The `_build_placeholders` method is then run to assign tensorflow
-  placeholders to the dict attribute `_holders`. Those are used to
+  placeholders to the dict attribute `holders`. Those are used to
   pass on input and target data, but also to specify parameters
   such as dropout. Subclasses may have to override this, either
   to introduce additional placeholders or alter the shape of the
@@ -92,7 +92,7 @@ by subclasses.
   sequentially, handling some technicalities such as setting dropout
   (unless explicitly told not to) or assigning unique names to
   rnn stacks in order to avoid tensorflow scope issues. The hidden
-  layers are stored in the `_layers` OrderedDict attribute.
+  layers are stored in the `layers` OrderedDict attribute.
 
 
 * From readouts to training - abstract methods (Network building, 2/2)
@@ -106,13 +106,13 @@ by subclasses.
 
 - The `_build_readouts` method is run after the previous, and is
   basically a caller of other hidden methods used sequentially
-  to fill the `_readouts` dict attribute with tensors useful to
+  to fill the `readouts` dict attribute with tensors useful to
   train and/or evaluate the network's performances. This method
   may be overridden by subclasses which may need to add up steps
   (i.e. additional methods) to this end. In its basic definition,
   this method calls, in that order, the following methods:
     1. `build_initial_prediction`, an abstract method which should
-    assign a tensor to the `_readouts` attribute under the
+    assign a tensor to the `readouts` attribute under the
     'raw_prediction' key.
 
     2. `build_refined_prediction`, an implemented method which aims
@@ -120,18 +120,11 @@ by subclasses.
     de-normalization and signal filtering (smoothing).
 
     3. `build_error_readouts`, an abstract method which should assign
-    to the `_readouts` attribute any tensor necessary to building
+    to the `readouts` attribute any tensor necessary to building
     the training function.
 
 - Finally, the `_build_training_function` is run. This abstract
   method should build one or more tensorflow operations that
   need running so as to update the network's weights (or signal
   cutoff frequencies) and assign them (e.g. as a list) to the
-  `_training_function` attribute.
-
-
-[Network training and scoring]
-
-- `run_training_function`
-- `predict`
-- `score`
+  `training_function` attribute.

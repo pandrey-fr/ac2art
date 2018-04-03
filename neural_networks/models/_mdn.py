@@ -76,7 +76,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     @onetimemethod
     def _build_readout_layer(self):
         """Build the readout layer of the mixture density network."""
-        self._layers['readout_layer'] = DenseLayer(
+        self.layers['readout_layer'] = DenseLayer(
             self._top_layer.output, self.n_parameters, 'identity'
         )
 
@@ -93,17 +93,17 @@ class MixtureDensityNetwork(MultilayerPerceptron):
     def _build_parameters_readouts(self):
         """Build wrappers reading the produced density mixture parameters."""
         raw_parameters = tf.cast(
-            self._layers['readout_layer'].output, tf.float64
+            self.layers['readout_layer'].output, tf.float64
         )
-        self._readouts['priors'] = (
+        self.readouts['priors'] = (
             tf.nn.softmax(raw_parameters[:, :self.n_components])
         )
         n_means = self.n_components * self.n_targets
-        self._readouts['means'] = tf.reshape(
+        self.readouts['means'] = tf.reshape(
             raw_parameters[:, self.n_components:self.n_components + n_means],
             (-1, self.n_components, self.n_targets)
         )
-        self._readouts['std_deviations'] = tf.reshape(
+        self.readouts['std_deviations'] = tf.reshape(
             tf.exp(raw_parameters[:, self.n_components + n_means:]),
             (-1, self.n_components, self.n_targets)
         )
@@ -113,16 +113,16 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """Build wrappers computing the likelihood of the produced GMM."""
         # Define the network's likelihood.
         targets = (
-            self._holders['targets'] if self.norm_params is None
-            else self._holders['targets'] / self.norm_params
+            self.holders['targets'] if self.norm_params is None
+            else self.holders['targets'] / self.norm_params
         )
-        self._readouts['likelihood'] = gaussian_mixture_density(
-            tf.cast(targets, tf.float64), self._readouts['priors'],
-            self._readouts['means'], self._readouts['std_deviations']
+        self.readouts['likelihood'] = gaussian_mixture_density(
+            tf.cast(targets, tf.float64), self.readouts['priors'],
+            self.readouts['means'], self.readouts['std_deviations']
         )
         # Define the error function and training step optimization program.
-        self._readouts['mean_log_likelihood'] = (
-            tf.reduce_mean(tf.log(self._readouts['likelihood'] + 1e-62))
+        self.readouts['mean_log_likelihood'] = (
+            tf.reduce_mean(tf.log(self.readouts['likelihood'] + 1e-62))
         )
 
     @onetimemethod
@@ -135,9 +135,9 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         component.
         """
         # Gather parameters for better code readability.
-        priors = tf.expand_dims(self._readouts['priors'], 2)
-        means = self._readouts['means']
-        stds = self._readouts['std_deviations']
+        priors = tf.expand_dims(self.readouts['priors'], 2)
+        means = self.readouts['means']
+        stds = self.readouts['std_deviations']
         # Compute the mean of the components' means, weighted by priors.
         # Use this as an initial prediction.
         initial = tf.expand_dims(tf.reduce_sum(priors * means, axis=1), 1)
@@ -150,19 +150,19 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Compute the mean of the component's means, weighted by occupancy.
         # Use this as the targets' prediction.
         prediction = tf.reduce_sum(occupancy * means, axis=1)
-        self._readouts['raw_prediction'] = tf.cast(prediction, tf.float32)
+        self.readouts['raw_prediction'] = tf.cast(prediction, tf.float32)
 
     @onetimemethod
     def _build_training_function(self):
         """Build the model's training step method."""
         # Build a function to maximize the network's mean log-likelihood.
         maximize_likelihood = minimize_safely(
-            self.optimizer, loss=-1 * self._readouts['mean_log_likelihood'],
+            self.optimizer, loss=-1 * self.readouts['mean_log_likelihood'],
             var_list=self._neural_weights
         )
         # Build a function to minimize the prediction error.
         super()._build_training_function()
-        minimize_rmse = self._training_function
+        minimize_rmse = self.training_function
         # Declare a two-fold train step function.
         def train_step(fit='likelihood'):
             """Modular training step, depending on the metric to use."""
@@ -175,7 +175,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             else:
                 raise ValueError("Unknown cost function '%s'." % fit)
         # Assign the network's train step function.
-        self._training_function = train_step
+        self.training_function = train_step
 
     def _get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
@@ -207,12 +207,12 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
         feed_dict = self._get_feed_dict(input_data, targets, keep_prob, fit)
-        self.session.run(self._training_function(fit), feed_dict)
+        self.session.run(self.training_function(fit), feed_dict)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
         feed_dict = self._get_feed_dict(input_data, fit='trajectory')
-        return self._readouts['prediction'].eval(feed_dict, self.session)
+        return self.readouts['prediction'].eval(feed_dict, self.session)
 
     def score(self, input_data, targets, score='likelihood'):
         """Return a given metric evaluating the network.
@@ -227,9 +227,9 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Check 'score' argument validity and select the associated metric.
         check_type_validity(score, str, 'score')
         if score == 'likelihood':
-            metric = self._readouts['mean_log_likelihood']
+            metric = self.readouts['mean_log_likelihood']
         elif score == 'trajectory':
-            metric = self._readouts['rmse']
+            metric = self.readouts['rmse']
         else:
             raise ValueError("Unknown score method: '%s'.")
         # Evaluate the selected metric.
