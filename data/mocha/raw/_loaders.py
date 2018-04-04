@@ -4,8 +4,9 @@
 
 import os
 
-import pandas as pd
 import resampy
+import pandas as pd
+import numpy as np
 from sphfile import SPHFile
 
 from data.commons.loaders import EstTrack, Wav
@@ -42,18 +43,19 @@ def load_sphfile(path, sampling_rate, frame_size, hop_time):
     return wav
 
 
-def load_wav(filename, frame_size=200, hop_time=2.5):
+def load_wav(filename, frame_size=200, hop_time=2):
     """Load data from a mocha-timit waveform (.wav) file.
 
     filename   : name of the utterance whose audio data to load (str)
     frame_size : number of samples to include per frame (int, default 200)
     hop_time   : duration of the shift step between frames, in milliseconds
-                 (int, default 2.5)
+                 (int, default 2)
 
     Return a `data.commons.Wav` instance, containing the audio waveform
     and an array of frames grouping samples based on the `frame_size`
-    and `hop_time` arguments. The default values of the latter are those
-    used in most papers relying on mocha-timit data.
+    and `hop_time` arguments. The default values of the latter are set
+    to match the initial EMA sample rate and the frame size used in
+    papers dealing with the mngu0 corpus.
     """
 
     # Load phone labels and compute frames index so as to trim silences.
@@ -62,7 +64,7 @@ def load_wav(filename, frame_size=200, hop_time=2.5):
     return load_sphfile(path, 16000, frame_size, hop_time)
 
 
-def load_lar(filename):
+def load_larynx(filename):
     """Load laryngograph data from a mocha-timit .lar file.
 
     filename : name of the utterance whose laryngograph data to load (str)
@@ -72,7 +74,7 @@ def load_lar(filename):
     """
     speaker = filename.split('_')[0]
     path = os.path.join(RAW_FOLDER, speaker, filename + '.lar')
-    signal = load_sphfile(path, sampling_rate=16000, frame_size=0).signal
+    signal = load_sphfile(path, 16000, 0, 1).signal
     return resampy.resample(signal, 16000, 500, axis=0)
 
 
@@ -103,9 +105,12 @@ def load_ema(filename, columns_to_keep=None):
         ]
         ema_data = track.data[:, cols_index]
     # Optionally add the laryngograph data to the articulatory data.
+    # NOTE: EMA tracks last longer than laryngograph (and audio) ones,
+    # thus cutting its final edge causes no issue.
     if 'larynx' in column_names:
-        ema_data = np.concatenate([ema_data, load_lar(filename)], axis=1)
-    # TODO: resample ~ smooth data
+        larynx = load_larynx(filename)
+        larynx = np.expand_dims(larynx[:len(ema_data)], 1)
+        ema_data = np.concatenate([ema_data, larynx], axis=1)
     # Return the EMA data and a list of columns names.
     return ema_data, column_names
 
