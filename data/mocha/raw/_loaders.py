@@ -96,20 +96,25 @@ def load_ema(filename, columns_to_keep=None):
     check_type_validity(columns_to_keep, (list, type(None)), 'columns_to_keep')
     column_names = list(track.column_names.values())
     if columns_to_keep is None:
-        ema_data = track.data
+        ema_data = track.data / 1000
         column_names.append('larynx')
     else:
         cols_index = [
             column_names.index(col) for col in columns_to_keep
             if col != 'larynx'
         ]
-        ema_data = track.data[:, cols_index]
+        column_names = columns_to_keep
+        ema_data = track.data[:, cols_index] / 1000
     # Optionally add the laryngograph data to the articulatory data.
     # NOTE: EMA tracks last longer than laryngograph (and audio) ones,
     # thus cutting its final edge causes no issue.
     if 'larynx' in column_names:
-        larynx = load_larynx(filename)
-        larynx = np.expand_dims(larynx[:len(ema_data)], 1)
+        larynx = load_larynx(filename) * 10
+        if len(larynx) > len(ema_data):
+            larynx = np.expand_dims(larynx[:len(ema_data)], 1)
+        else:
+            ema_data = ema_data[:len(larynx)]
+            larynx = np.expand_dims(larynx, 1)
         ema_data = np.concatenate([ema_data, larynx], axis=1)
     # Smooth the signal, as recordings are pretty bad.
     ema_data = lowpass_filter(ema_data, cutoff=20, sample_rate=500)

@@ -20,7 +20,7 @@ EXTRACTION_DOC_DETAILS = """
 
 DEFAULT_ARTICULATORS = [
     'tt_x', 'tt_y', 'td_x', 'td_y', 'tb_x', 'tb_y', 'li_x', 'li_y',
-    'ul_x', 'ul_y', 'll_x', 'll_y', 'v_x', 'v_y', 'larynx'
+    'ul_x', 'ul_y', 'll_x', 'll_y', 'v_x ', 'v_y ', 'larynx'
 ]
 
 
