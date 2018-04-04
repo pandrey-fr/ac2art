@@ -170,7 +170,12 @@ class GenerativeAdversarialNets:
             var_list=self.generator._neural_weights
         )
         # Add a function to optimize the generator's top filter, if any.
-        if self.generator.top_filter is not None:
+        learnable_filter = (
+            self.generator.top_filter is not None
+            and self.generator.layers['top_filter'].learnable
+        )
+        print(learnable_filter)
+        if learnable_filter:
             fit_filter = minimize_safely(
                 tf.train.AdamOptimizer(.9), loss=rmse,
                 var_list=self.generator._filter_cutoffs
