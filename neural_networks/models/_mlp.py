@@ -137,5 +137,5 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         input_data : input data sample to evalute the model on which
         targets    : true targets associated with the input dataset
         """
-        feed_dict = self._get_feed_dict(input_data, targets)
+        feed_dict = self.get_feed_dict(input_data, targets)
         return self.readouts['rmse'].eval(feed_dict, self.session)

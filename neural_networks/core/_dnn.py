@@ -276,7 +276,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """
         return NotImplemented
 
-    def _get_feed_dict(self, input_data, targets=None, keep_prob=1):
+    def get_feed_dict(self, input_data, targets=None, keep_prob=1):
         """Build a tensorflow feeding dictionary out of provided arguments.
 
         input_data : data to feed to the network
@@ -299,12 +299,12 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         keep_prob  : probability for each unit to have its outputs used in
                      the training procedure (float in [0., 1.], default 1.)
         """
-        feed_dict = self._get_feed_dict(input_data, targets, keep_prob)
+        feed_dict = self.get_feed_dict(input_data, targets, keep_prob)
         self.session.run(self.training_function, feed_dict)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
-        feed_dict = self._get_feed_dict(input_data)
+        feed_dict = self.get_feed_dict(input_data)
         return self.readouts['prediction'].eval(feed_dict, self.session)
 
     @abstractmethod

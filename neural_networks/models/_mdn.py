@@ -177,7 +177,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Assign the network's train step function.
         self.training_function = train_step
 
-    def _get_feed_dict(
+    def get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
         ):
         """Return a tensorflow feeding dictionary out of provided arguments.
@@ -189,7 +189,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
         # 'fit' argument is for subclasses; pylint: disable=unused-argument
-        return super()._get_feed_dict(input_data, targets, keep_prob)
+        return super().get_feed_dict(input_data, targets, keep_prob)
 
     def run_training_function(
             self, input_data, targets, keep_prob=1, fit='likelihood'
@@ -206,12 +206,12 @@ class MixtureDensityNetwork(MultilayerPerceptron):
                      'trajectory' RMSE or produced GMM 'likelihood'
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
-        feed_dict = self._get_feed_dict(input_data, targets, keep_prob, fit)
+        feed_dict = self.get_feed_dict(input_data, targets, keep_prob, fit)
         self.session.run(self.training_function(fit), feed_dict)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
-        feed_dict = self._get_feed_dict(input_data, fit='trajectory')
+        feed_dict = self.get_feed_dict(input_data, fit='trajectory')
         return self.readouts['prediction'].eval(feed_dict, self.session)
 
     def score(self, input_data, targets, score='likelihood'):
@@ -233,5 +233,5 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         else:
             raise ValueError("Unknown score method: '%s'.")
         # Evaluate the selected metric.
-        feed_dict = self._get_feed_dict(input_data, targets, fit=score)
+        feed_dict = self.get_feed_dict(input_data, targets, fit=score)
         return metric.eval(feed_dict, self.session)

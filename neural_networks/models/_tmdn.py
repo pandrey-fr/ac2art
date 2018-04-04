@@ -63,7 +63,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         )
         self.readouts['raw_prediction'] = tf.cast(trajectory, tf.float32)
 
-    def _get_feed_dict(
+    def get_feed_dict(
             self, input_data, targets=None, keep_prob=1, fit='likelihood'
         ):
         """Return a tensorflow feeding dictionary out of provided arguments.
@@ -73,7 +73,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         keep_prob  : probability to use for the dropout layers (default 1)
         fit        : output quantity used (str in {'likelihood', 'trajectory'})
         """
-        feed_dict = super()._get_feed_dict(input_data, targets, keep_prob)
+        feed_dict = super().get_feed_dict(input_data, targets, keep_prob)
         # If needed, generate a delta weights matrix and set it to be fed.
         if fit == 'trajectory':
             weights = build_dynamic_weights_matrix(
