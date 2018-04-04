@@ -16,7 +16,7 @@ def build_setup_functions(corpus):
     loading_setup = {
         'audio_type': 'mfcc_stds',
         'context_window': 5,
-        'dynamic_ema': False,
+        'dynamic_ema': True,
         'ema_norm': 'mean',
         'zero_padding': True
     }
