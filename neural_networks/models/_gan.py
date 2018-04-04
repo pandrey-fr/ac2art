@@ -174,7 +174,6 @@ class GenerativeAdversarialNets:
             self.generator.top_filter is not None
             and self.generator.layers['top_filter'].learnable
         )
-        print(learnable_filter)
         if learnable_filter:
             fit_filter = minimize_safely(
                 tf.train.AdamOptimizer(.9), loss=rmse,
