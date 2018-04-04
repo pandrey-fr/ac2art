@@ -92,7 +92,19 @@ class Discriminator:
 
 
 class GenerativeAdversarialNets:
-    """Docstring."""
+    """Class to define generative adversarial networks in tensorflow.
+
+    GANs are made of a generator network, which based on some input
+    aims at generating some target data, and a discriminator network,
+    whose goal is to distinguish the actual target data from that
+    produced by the generator network. These network's loss functions
+    and training procedures are then brought together so that their
+    joint training may help improve performance of both networks, and
+    especially that of the generator.
+
+    This class does not inherit from DeepNeuralNetwork, but mimics
+    bits of its API while not reproducing all of its functionalities.
+    """
 
     def __init__(self, generator_model, discriminator_layers):
         """Instantiate the adversarial training instance.
