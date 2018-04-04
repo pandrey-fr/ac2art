@@ -207,7 +207,8 @@ class GenerativeAdversarialNets:
         # Cut the data into subsamples and define a training procedure.
         size = len(input_data) // n_iter
         samples = [
-            list(range(i, i + size)) for i in range(0, len(input_data), size)
+            list(range(i, i + size))
+            for i in range(0, len(input_data) - size, size)
         ]
         def train_network(network):
             """Iteratively fit a network using the different data samples."""
