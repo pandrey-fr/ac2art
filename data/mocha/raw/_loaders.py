@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from sphfile import SPHFile
 
+from data.commons.enhance import lowpass_filter
 from data.commons.loaders import EstTrack, Wav
 from data.utils import check_type_validity, CONSTANTS
 
@@ -111,6 +112,8 @@ def load_ema(filename, columns_to_keep=None):
         larynx = load_larynx(filename)
         larynx = np.expand_dims(larynx[:len(ema_data)], 1)
         ema_data = np.concatenate([ema_data, larynx], axis=1)
+    # Smooth the signal, as recordings are pretty bad.
+    ema_data = lowpass_filter(ema_data, cutoff=20, sample_rate=500)
     # Return the EMA data and a list of columns names.
     return ema_data, column_names
 
