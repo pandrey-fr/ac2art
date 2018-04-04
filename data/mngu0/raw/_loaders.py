@@ -12,8 +12,9 @@ from data.utils import check_type_validity, CONSTANTS
 RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
 
 
-def get_utterances_list():
+def get_utterances_list(speaker=None):
     """Return the full list of mngu0 utterances' names."""
+    # Argument merely serves compatibility; pylint: disable=unused-argument
     wav_folder = os.path.join(RAW_FOLDER, 'wav_16kHz')
     return sorted([
         name[:-4] for name in os.listdir(wav_folder) if name.endswith('.wav')
