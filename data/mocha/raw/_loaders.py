@@ -5,7 +5,6 @@
 import os
 
 import resampy
-import pandas as pd
 import numpy as np
 from sphfile import SPHFile
 

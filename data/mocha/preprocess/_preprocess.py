@@ -2,13 +2,10 @@
 
 """Set of functions to pre-process raw mocha-timit data."""
 
-import os
-
 
 from data._prototype.extract import build_features_extraction_functions
 from data._prototype.normalize import build_normalization_functions
-from data._prototype.split import build_split_corpus, store_filesets
-from data.utils import CONSTANTS
+from data._prototype.split import build_split_corpus
 
 
 EXTRACTION_DOC_DETAILS = """
