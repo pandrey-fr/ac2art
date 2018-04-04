@@ -29,18 +29,17 @@ def get_utterances_list(speaker=None):
     ])
 
 
-def load_wav(filename, frame_size=200, hop_time=2):
+def load_wav(filename, frame_size=200, hop_time=2.5):
     """Load data from a mspka waveform (.wav) file.
 
     filename   : name of the utterance whose audio data to load (str)
     frame_size : number of samples to include per frame (int, default 200)
     hop_time   : duration of the shift step between frames, in milliseconds
-                 (int, default 2)
+                 (int, default 2.5)
 
     Return a `data.commons.Wav` instance, containing the audio waveform
     and an array of frames grouping samples based on the `frame_size`
-    and `hop_time` arguments. The default values of the latter are those
-    used in most papers relying on mngu0 data.
+    and `hop_time` arguments.
     """
     speaker = filename.split('_')[0]
     path = os.path.join(
