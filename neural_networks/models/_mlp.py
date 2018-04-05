@@ -120,14 +120,15 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Build a function optimizing the neural layers' weights.
         fit_weights = minimize_safely(
             self.optimizer, loss=self.readouts['rmse'],
-            var_list=self._neural_weights, reduce_fn=tf.reduce_max
+            var_list=self._neural_weights, reduce_fn=tf.reduce_mean
         )
         # If appropriate, build a function optimizing the filters' cutoff.
         if self._filter_cutoffs:
-            fit_filter = tf.train.GradientDescentOptimizer(.9).minimize(
-                self.readouts['rmse'], var_list=self._filter_cutoffs
+            fit_filters = minimize_safely(
+                tf.train.GradientDescentOptimizer(.9),
+                loss=self.readouts['rmse'], var_list=self._filter_cutoffs
             )
-            self.training_function = [fit_weights, fit_filter]
+            self.training_function = [fit_weights, fit_filters]
         else:
             self.training_function = fit_weights
 
