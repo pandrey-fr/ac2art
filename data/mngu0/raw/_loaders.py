@@ -10,6 +10,7 @@ from data.utils import check_type_validity, CONSTANTS
 
 
 RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
+SPEAKERS = [None]
 
 
 def get_utterances_list(speaker=None):

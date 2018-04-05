@@ -7,17 +7,18 @@ import os
 import numpy as np
 
 from data.commons.enhance import build_context_windows
+from data._prototype.normalize import _get_normfile_path
 from data.utils import CONSTANTS, import_from_string
 
 
-def build_setup_functions(corpus):
+def build_setup_functions(corpus, default_byspeaker):
     """Build functions to view and alter a dict of loading arguments."""
     # Declare the loading setup dict.
     loading_setup = {
-        'audio_type': 'mfcc_stds',
+        'audio_type': 'mfcc_stds' + ('_byspeaker' if default_byspeaker else ''),
         'context_window': 5,
         'dynamic_ema': True,
-        'ema_norm': 'mean',
+        'ema_norm': 'mean' + ('_byspeaker' if default_byspeaker else ''),
         'zero_padding': True
     }
     # Define functions to manipulate the former dict.
@@ -75,12 +76,15 @@ def build_file_loaders(corpus):
         'data.%s.raw._loaders' % corpus, 'get_utterances_list'
     )
     # Define the four loading functions.
-    def get_norm_parameters(file_type):
-        """Return normalization parameters for a type of {0} features."""
+    def get_norm_parameters(file_type, speaker=None):
+        """Return normalization parameters for a type of {0} features.
+
+        file_type : type of features whose parameters to return (str)
+        speaker   : optional speaker whose parameters to return (str)
+                    (otherwise, corpus-wide parameters are returned)
+        """
         nonlocal data_folder
-        path = os.path.join(
-            data_folder, 'norm_params', 'norm_%s.npy' % file_type
-        )
+        path = _get_normfile_path(data_folder, file_type, speaker)
         return np.load(path).tolist()
 
     def get_utterances(set_name=None):
@@ -130,11 +134,13 @@ def build_file_loaders(corpus):
         """
         nonlocal data_folder, get_norm_parameters
         ema_folder = (
-            'ema' if norm_type in ('', 'mean') else 'ema_norm_' + norm_type
+            'ema' if norm_type in ('', 'mean', 'mean_byspeaker')
+            else 'ema_norm_' + norm_type
         )
         ema = np.load(os.path.join(data_folder, ema_folder, name + '_ema.npy'))
-        if norm_type == 'mean':
-            ema -= get_norm_parameters('ema')['global_means']
+        if norm_type.startswith('mean'):
+            speaker = None if norm_type == 'mean' else name.split('_', 1)[0]
+            ema -= get_norm_parameters('ema', speaker)['global_means']
         if use_dynamic:
             return ema
         return ema[:, :ema.shape[1] // 3]
@@ -146,10 +152,12 @@ def build_file_loaders(corpus):
     return functions
 
 
-def build_loading_functions(corpus):
+def build_loading_functions(corpus, default_byspeaker):
     """Define and return data loading functions for a given corpus."""
     # Use auxiliary functions to build the basic loading functions.
-    change_loading_setup, get_loading_setup = build_setup_functions(corpus)
+    change_loading_setup, get_loading_setup = (
+        build_setup_functions(corpus, default_byspeaker)
+    )
     get_norm_parameters, get_utterances, load_acoustic, load_ema = (
         build_file_loaders(corpus)
     )

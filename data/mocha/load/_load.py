@@ -9,4 +9,4 @@ from data._prototype.load import build_loading_functions
 (
     change_loading_setup, get_loading_setup, get_norm_parameters,
     get_utterances, load_acoustic, load_ema, load_utterance, load_dataset
-) = build_loading_functions('mocha')
+) = build_loading_functions('mocha', default_byspeaker=True)

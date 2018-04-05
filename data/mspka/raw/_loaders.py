@@ -7,26 +7,27 @@ import os
 import pandas as pd
 
 from data.commons.loaders import Wav
+from data._prototype.raw import build_utterances_getter
 from data.utils import alphanum_sort, check_type_validity, CONSTANTS
 
 
 RAW_FOLDER = CONSTANTS['mspka_raw_folder']
+SPEAKERS = ['cnz', 'lls', 'olm']
 
 
-def get_utterances_list(speaker=None):
-    """Return the full list of mspka utterances' names."""
-    speakers = ['cnz', 'lls', 'olm']
-    # If no speaker is targetted, return all speakers' utterances list.
-    if speaker is None:
-        return [
-            utterance for speaker in speakers
-            for utterance in get_utterances_list(speaker)
-        ]
-    # Otherwise, load the list of utterances available for the speaker.
+def get_speaker_utterances(speaker):
+    """Return the list of mocha-timit utterances for a given speaker."""
     folder = os.path.join(RAW_FOLDER, speaker + '_1.0.0', 'lab_1.0.0')
     return alphanum_sort([
         name[:-4] for name in os.listdir(folder) if name.endswith('.lab')
     ])
+
+
+# Define function through wrappers; pylint: disable=invalid-name
+get_utterances_list = (
+    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mspka')
+)
+# pylint: enable=invalid-name
 
 
 def load_wav(filename, frame_size=200, hop_time=2.5):

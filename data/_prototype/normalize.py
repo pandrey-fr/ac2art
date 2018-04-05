@@ -13,20 +13,40 @@ def build_normalization_functions(dataset):
     """Define and return functions to normalize datasets."""
     # Gather dataset-specific dependencies.
     main_folder = CONSTANTS['%s_processed_folder' % dataset]
-    get_utterances_list = import_from_string(
-        'data.%s.raw._loaders' % dataset, 'get_utterances_list'
+    get_utterances_list, speakers = import_from_string(
+        'data.%s.raw._loaders' % dataset, ['get_utterances_list', 'SPEAKERS']
     )
     # Wrap the normalization parameters computing function.
-    def compute_moments(file_type, speaker=None, store=True):
+    def compute_moments(file_type, by_speaker=False, store=True):
         """Compute files moments."""
+        nonlocal speakers
+        # Optionally compute speaker-wise normalization parameters.
+        if by_speaker:
+            return {
+                speaker: _compute_moments(
+                    file_type, speaker, store, main_folder, get_utterances_list
+                )
+                for speaker in speakers
+            }
+        # Otherwise, compute corpus-wide parameters.
         return _compute_moments(
-            file_type, store, speaker, main_folder, get_utterances_list
+            file_type, None, store, main_folder, get_utterances_list
         )
     # Wrap the files normalization functon.
-    def normalize_files(file_type, norm_type, speaker=None):
+    def normalize_files(file_type, norm_type, by_speaker=False):
         """Normalize a set of files."""
+        nonlocal speakers
+        # Optionally normalize utterances using speaker-wise values.
+        if by_speaker:
+            for speaker in speakers:
+                _normalize_files(
+                    file_type, norm_type, speaker, main_folder,
+                    get_utterances_list, compute_moments
+                )
+            return None
+        # Otherwise, normalize all utterances using corpus-wide values.
         return _normalize_files(
-            file_type, norm_type, speaker, main_folder,
+            file_type, norm_type, None, main_folder,
             get_utterances_list, compute_moments
         )
     # Adjust the functions' docstrings and return them.
@@ -42,17 +62,17 @@ def _get_normfile_path(main_folder, file_type, speaker):
 
 
 def _compute_moments(
-        file_type, store, speaker, main_folder, get_utterances_list
+        file_type, speaker, store, main_folder, get_utterances_list
     ):
     """Compute file-wise and global mean, deviation and spread of a dataset.
 
     The dataset must have been produced through extracting operations
     on the initial .ema and .wav files of the {0} dataset.
 
-    file_type : type of data (str in {{'ema', 'energy', 'lsf', 'lpc', 'mfcc'}})
-    speaker   : optional speaker to whose utterances to reduce the computation
-    store     : whether to store the computed values to disk
-                (bool, default True)
+    file_type  : one of {{'ema', 'energy', 'lsf', 'lpc', 'mfcc'}}
+    by_speaker : whether to compute speaker-wise normalization parameters
+                 instead of corpus-wide ones (bool, default False)
+    store      : whether to store the computed values (bool, default True)
 
     Return a dict containing the computed values.
     Optionally write it to a dedicated .npy file.
@@ -101,21 +121,24 @@ def _normalize_files(
 
     Normalized utterances are stored as .npy files in a properly-named folder.
 
-    file_type : one in {{'ema', 'energy', 'lpc', 'lsf', 'mfcc'}}
-    norm_type : normalization divisor to use ('spread' or 'stds')
-    speaker   : optional speaker whose utterances to normalize,
-                using speaker-wise norm parameters
+    file_type  : one of {{'ema', 'energy', 'lpc', 'lsf', 'mfcc'}}
+    norm_type  : normalization divisor to use ('spread' or 'stds')
+    by_speaker : whether to use speaker-wise normalization parameters
+                 instead of corpus-wide ones (bool, default False)
     """
     input_folder = os.path.join(main_folder, file_type)
     # Gather files' moments. Compute them if needed.
     path = _get_normfile_path(main_folder, file_type, speaker)
     if os.path.isfile(path):
         moments = np.load(path).tolist()
+    elif speaker is None:
+        moments = compute_moments(file_type, by_speaker=False)
     else:
-        moments = compute_moments(file_type, speaker=speaker, store=True)
+        moments = compute_moments(file_type, by_speaker=True)[speaker]
     means = moments['global_means']
     norm = moments['global_%s' % norm_type] * (4 if norm_type == 'stds' else 1)
     # Build the output directory, if needed.
+    norm_type += ('' if speaker is None else '_byspeaker')
     output_folder = os.path.join(main_folder, file_type + '_norm_' + norm_type)
     if not os.path.isdir(output_folder):
         os.makedirs(output_folder)

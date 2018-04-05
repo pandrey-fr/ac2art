@@ -10,26 +10,27 @@ from sphfile import SPHFile
 
 from data.commons.enhance import lowpass_filter
 from data.commons.loaders import EstTrack, Wav
+from data._prototype.raw import build_utterances_getter
 from data.utils import check_type_validity, CONSTANTS
 
 
 RAW_FOLDER = CONSTANTS['mocha_raw_folder']
+SPEAKERS = ['fsew0', 'msak0']
 
 
-def get_utterances_list(speaker=None):
-    """Return the full list of mocha-timit utterances' names."""
-    speakers = ['fsew0', 'msak0']
-    # If no speaker is targetted, return all speakers' utterances list.
-    if speaker is None:
-        return [
-            utterance for speaker in speakers
-            for utterance in get_utterances_list(speaker)
-        ]
-    # Otherwise, load the list of utterances available for the speaker.
+def get_speaker_utterances(speaker):
+    """Return the list of mocha-timit utterances for a given speaker."""
     folder = os.path.join(RAW_FOLDER, speaker)
     return sorted([
         name[:-4] for name in os.listdir(folder) if name.endswith('.wav')
     ])
+
+
+# Define function through wrappers; pylint: disable=invalid-name
+get_utterances_list = (
+    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mocha')
+)
+# pylint: enable=invalid-name
 
 
 def load_sphfile(path, sampling_rate, frame_size, hop_time):
