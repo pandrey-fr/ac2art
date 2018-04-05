@@ -195,7 +195,7 @@ class GenerativeAdversarialNets:
         # Assign the wrapper as the instance's training function.
         self.training_function = training_function
 
-    def run_training_step(self, input_data, target_data, n_iter=10):
+    def run_training_function(self, input_data, target_data, n_iter=10):
         """Run a training step, fitting both networks adversarially.
 
         input_data  : input data to feed to the generator network
