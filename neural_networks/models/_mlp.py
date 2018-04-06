@@ -5,10 +5,10 @@
 import inspect
 
 import tensorflow as tf
+import numpy as np
 
-from neural_networks.components import build_rmse_readouts
 from neural_networks.components.layers import DenseLayer
-from neural_networks.core import DeepNeuralNetwork
+from neural_networks.core import DeepNeuralNetwork, build_rmse_readouts
 from neural_networks.tf_utils import minimize_safely
 from neural_networks.utils import raise_type_error, onetimemethod
 
@@ -18,7 +18,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
 
     def __init__(
             self, input_shape, n_targets, layers_config, top_filter=None,
-            norm_params=None, optimizer=None
+            use_dynamic=True, norm_params=None, optimizer=None
         ):
         """Instantiate a multilayer perceptron for regression tasks.
 
@@ -31,6 +31,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                         an optional dict of keyword arguments
         top_filter    : optional tuple specifying a SignalFilter to use
                         on top of the network's raw prediction
+        use_dynamic   : whether to produce dynamic features and use them
+                        when training the model (bool, default True)
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         optimizer     : tensorflow.train.Optimizer instance (by default,
@@ -38,8 +40,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_shape, n_targets, layers_config, top_filter, norm_params,
-            optimizer=optimizer,
+            input_shape, n_targets, layers_config, top_filter,
+            use_dynamic, norm_params, optimizer=optimizer
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -140,3 +142,22 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """
         feed_dict = self.get_feed_dict(input_data, targets)
         return self.readouts['rmse'].eval(feed_dict, self.session)
+
+    def score_corpus(self, input_corpus, targets_corpus):
+        """Iteratively compute the network's root mean square prediction error.
+
+        input_corpus   : sequence of input data arrays
+        targets_corpus : sequence of true targets arrays
+
+        Return the channel-wise root mean square prediction error
+        of the network on the full set of samples.
+        """
+        # Declare containers.
+        n_total = sum(len(samples) for samples in input_corpus)
+        # Compute sample-wise scores.
+        scores = np.array([
+            self.score(input_data, targets) * len(input_data)
+            for input_data, targets in zip(input_data, targets_corpus)
+        ])
+        # Reduce scores and return them
+        return np.sqrt(np.sum(scores, axis=0) / n_total)

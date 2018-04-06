@@ -9,7 +9,10 @@ import os
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.core import build_layers_stack, validate_layer_config
+from data.commons.enhance import build_dynamic_weights_matrix
+from neural_networks.core import (
+    build_layers_stack, refine_signal, validate_layer_config
+)
 from neural_networks.components.filters import SignalFilter
 from neural_networks.components.layers import NeuralLayer
 from neural_networks.components.rnn import AbstractRNN
@@ -28,29 +31,33 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     """
 
     def __init__(
-            self, input_shape, n_targets, layers_config,
-            top_filter=None, norm_params=None, **kwargs
+            self, input_shape, n_targets, layers_config, top_filter=None,
+            use_dynamic=True, norm_params=None, **kwargs
         ):
         """Initialize the neural network.
 
         input_shape   : shape of the input data fed to the network, with
                         the number of samples as first component
                         (tuple, list, tensorflow.TensorShape)
-        n_targets     : number of real-valued targets to predict
+        n_targets     : number of real-valued targets to predict,
+                        notwithstanding dynamic features
         layers_config : list of tuples specifying a layer configuration,
                         made of a layer class (or short name), a number
                         of units (or a cutoff frequency for filters) and
                         an optional dict of keyword arguments
         top_filter    : optional tuple specifying a SignalFilter to use
                         on top of the network's raw prediction
+        use_dynamic   : whether to produce dynamic features and use them
+                        when training the model (bool, default True)
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         # Record and process initialization arguments.
         self._init_arguments = {
             'input_shape': input_shape, 'n_targets': n_targets,
             'layers_config': layers_config, 'top_filter': top_filter,
-            'norm_params': norm_params
+            'use_dynamic': use_dynamic, 'norm_params': norm_params
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -193,15 +200,23 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                 "Wrong 'norm_params' shape: %s instead of (%s,)"
                 % (norm_params.shape, self.n_targets)
             )
+        # Validate the use_dynamic argument.
+        check_type_validity(self.use_dynamic, bool, 'use_dynamic')
 
     @onetimemethod
     def _build_placeholders(self):
         """Build the network's placeholders."""
         self.holders['input'] = tf.placeholder(tf.float32, self.input_shape)
-        self.holders['targets'] = tf.placeholder(
-            tf.float32, [self.input_shape[0], self.n_targets]
-        )
         self.holders['keep_prob'] = tf.placeholder(tf.float32, ())
+        if self.use_dynamic:
+            self.holders['targets'] = tf.placeholder(
+                tf.float32, [self.input_shape[0], 3 * self.n_targets]
+            )
+            self.holders['_delta'] = tf.placeholder(tf.float32, [None, None])
+        else:
+            self.holders['targets'] = tf.placeholder(
+                tf.float32, [self.input_shape[0], self.n_targets]
+            )
 
     @onetimemethod
     def _build_hidden_layers(self):
@@ -242,18 +257,17 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @onetimemethod
     def _build_refined_prediction(self):
         """Refine the network's initial prediction."""
-        prediction = self.readouts['raw_prediction']
-        # Optionally de-normalize the initial prediction.
-        if self.norm_params is not None:
-            prediction *= self.norm_params
-        # Optionally filter the prediction.
-        if self.top_filter is not None:
-            self.layers['top_filter'] = list(
-                build_layers_stack(prediction, [self.top_filter]).values()
-            )[0]
-            prediction = self.layers['top_filter'].output
-        # Assign the refined prediction to the _readouts attribute.
+        prediction, top_filter = refine_signal(
+            self.readouts['raw_prediction'], self.norm_params,
+            self.top_filter, self.holders.get('_delta', None)
+        )
         self.readouts['prediction'] = prediction
+        if top_filter is not None:
+            n_filters = sum(
+                name.startswith('top_filter') for name in self.layers.keys()
+            )
+            name = ('top_filter_%s' % n_filters) if n_filters else 'top_filter'
+            self.layers[name] = top_filter
 
     @abstractmethod
     @onetimemethod
@@ -289,6 +303,11 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         }
         if targets is not None:
             feed_dict[self.holders['targets']] = targets
+        if self.use_dynamic:
+            weights = build_dynamic_weights_matrix(
+                len(input_data), window=5, complete=True
+            )
+            feed_dict[self.holders['_delta']] = weights
         return feed_dict
 
     def run_training_function(self, input_data, targets, keep_prob=1):
