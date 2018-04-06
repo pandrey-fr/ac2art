@@ -5,16 +5,25 @@
 import tensorflow as tf
 
 from neural_networks.components import build_rmse_readouts
+from neural_networks.core import validate_layer_config
 from neural_networks.models import MultilayerPerceptron
 from neural_networks.utils import check_type_validity, onetimemethod
 
 
 class AutoEncoder(MultilayerPerceptron):
-    """Docstring."""
+    """Class implementing auto-encoder networks in tensorflow.
+
+    An auto-encoder is a network composed of two stacked sub-networks,
+    and encoder and a decoder. The former aims at producing a given
+    representation (or prediction) out of some input data, while the
+    latter reconstructs the initial data from this representation.
+    Both network are trained jointly, through a loss function combining
+    their prediction and reconstruction errors.
+    """
 
     def __init__(
             self, input_shape, n_targets, encoder_config, decoder_config,
-            optimizer=None
+            encoder_filter=None, decoder_filter=None, optimizer=None
         ):
         """Instantiate the auto-encoder network.
 
@@ -23,6 +32,8 @@ class AutoEncoder(MultilayerPerceptron):
         n_targets      : number of real-valued targets to predict
         encoder_config : list of tuples specifying the encoder's architecture
         decoder_config : list of tuples specifying the decoder's architecture
+        encoder_filter : optional tuple specifying a top filter for the encoder
+        decoder_filter : optional tuple specifying a top filter for the decoder
         optimizer      : tensorflow.train.Optimizer instance (by default,
                          Adam optimizer with 1e-3 learning rate)
 
@@ -37,19 +48,26 @@ class AutoEncoder(MultilayerPerceptron):
         decoder parts, and on top of the latter. They are fully-connected
         layers with identity activation.
         """
+        # Arguments serve modularity ; pylint: disable=too-many-arguments
         # Check some arguments' validity.
         check_type_validity(encoder_config, list, 'encoder_config')
         check_type_validity(decoder_config, list, 'decoder_config')
         check_type_validity(input_shape, (list, tuple), 'input_shape')
         # Define a function specifying readout layers.
-        def get_readout(part, n_units):
+        def get_readout(part, n_units, top_filter):
             """Return the configuration of a network part's readout layer."""
             kwargs = {'activation': 'identity', 'name': part + '_readout'}
-            return [('dense_layer', n_units, kwargs)]
+            readout_layer = ('dense_layer', n_units, kwargs)
+            if top_filter is None:
+                return [readout_layer]
+            top_filter = validate_layer_config(top_filter)
+            top_filter[2].setdefault('name', part + '_top_filter')
+            return [readout_layer, top_filter]
         # Aggregate the encoder's and decoder's layers.
+        encoder_readout = get_readout('encoder', n_targets, encoder_filter)
+        decoder_readout = get_readout('decoder', input_shape[1], decoder_filter)
         layers_config = (
-            encoder_config + get_readout('encoder', n_targets)
-            + decoder_config + get_readout('decoder', input_shape[1])
+            encoder_config + encoder_readout + decoder_config + decoder_readout
         )
         # Initialize the auto-encoder network.
         super().__init__(
@@ -85,9 +103,10 @@ class AutoEncoder(MultilayerPerceptron):
         """Build wrappers of the network's predictions and errors."""
         def build_readouts(part, true_data):
             """Build the error readouts of a part of the network."""
-            readouts = build_rmse_readouts(
-                self.layers[part + '_readout'].output, true_data
-            )
+            output = self.layers.get(
+                part + '_top_filter', self.layers[part + '_readout']
+            ).output
+            readouts = build_rmse_readouts(output, true_data)
             for name, readout in readouts.items():
                 self.readouts[part + '_' + name] = readout
         # Use the previous function to build partial RMSE readouts.
