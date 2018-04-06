@@ -61,7 +61,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
             self, input_shape, n_targets, layers_config, top_filter,
-            norm_params, optimizer=optimizer, n_components=n_components
+            False, norm_params, optimizer=optimizer, n_components=n_components
         )
 
     @onetimemethod

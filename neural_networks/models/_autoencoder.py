@@ -2,10 +2,12 @@
 
 """Class implementing auto-encoder networks in tensorflow."""
 
+
 import tensorflow as tf
 
-from neural_networks.components import build_rmse_readouts
-from neural_networks.core import validate_layer_config
+from neural_networks.core import (
+    build_rmse_readouts, refine_signal, validate_layer_config
+)
 from neural_networks.models import MultilayerPerceptron
 from neural_networks.utils import check_type_validity, onetimemethod
 
@@ -23,17 +25,24 @@ class AutoEncoder(MultilayerPerceptron):
 
     def __init__(
             self, input_shape, n_targets, encoder_config, decoder_config,
-            encoder_filter=None, decoder_filter=None, optimizer=None
+            encoder_filter=None, decoder_filter=None, use_dynamic=True,
+            norm_params=None, optimizer=None
         ):
         """Instantiate the auto-encoder network.
 
         input_shape    : shape of the input data fed to the network,
                          with the number of samples as first component
-        n_targets      : number of real-valued targets to predict
+                         and including dynamic features
+        n_targets      : number of real-valued targets to predict,
+                         notwithstanding dynamic features
         encoder_config : list of tuples specifying the encoder's architecture
         decoder_config : list of tuples specifying the decoder's architecture
         encoder_filter : optional tuple specifying a top filter for the encoder
         decoder_filter : optional tuple specifying a top filter for the decoder
+        use_dynamic    : whether to produce dynamic features and use them
+                         when training the model (bool, default True)
+        norm_params    : optional normalization parameters of the targets
+                         (np.ndarray)
         optimizer      : tensorflow.train.Optimizer instance (by default,
                          Adam optimizer with 1e-3 learning rate)
 
@@ -49,10 +58,44 @@ class AutoEncoder(MultilayerPerceptron):
         layers with identity activation.
         """
         # Arguments serve modularity ; pylint: disable=too-many-arguments
-        # Check some arguments' validity.
+        # Compute the number of elements to reconstruct.
+        check_type_validity(input_shape, (list, tuple), 'input_shape')
+        check_type_validity(use_dynamic, bool, 'use_dynamic')
+        n_inputs = input_shape[1]
+        if use_dynamic:
+            if n_inputs % 3:
+                raise ValueError(
+                    "Wrong `input_shape` with `use_dynamic=True`: "
+                    "dim 1 should a divisor of 3."
+                )
+            n_inputs //= 3
+        # Build the network's full layers configuration.
+        layers_config = self._build_layers_config(
+            n_inputs, n_targets, encoder_config, decoder_config,
+            encoder_filter, decoder_filter
+        )
+        # Initialize the auto-encoder network.
+        super().__init__(
+            input_shape, n_targets, layers_config, use_dynamic=use_dynamic,
+            optimizer=optimizer
+        )
+        # Record additionnal initialization arguments.
+        self._init_arguments['encoder_config'] = encoder_config
+        self._init_arguments['decoder_config'] = decoder_config
+        self._init_arguments['encoder_filter'] = encoder_filter
+        self._init_arguments['decoder_filter'] = decoder_filter
+        # Remove unused inherited argument.
+        self._init_arguments.pop('top_filter')
+
+    @staticmethod
+    def _build_layers_config(
+            n_inputs, n_targets, encoder_config, decoder_config,
+            encoder_filter, decoder_filter
+        ):
+        """Build and return the list specifying all network layers."""
+        # Conduct minimal necessary tests. More are run later on.
         check_type_validity(encoder_config, list, 'encoder_config')
         check_type_validity(decoder_config, list, 'decoder_config')
-        check_type_validity(input_shape, (list, tuple), 'input_shape')
         # Define a function specifying readout layers.
         def get_readout(part, n_units, top_filter):
             """Return the configuration of a network part's readout layer."""
@@ -65,22 +108,10 @@ class AutoEncoder(MultilayerPerceptron):
             return [readout_layer, top_filter]
         # Aggregate the encoder's and decoder's layers.
         encoder_readout = get_readout('encoder', n_targets, encoder_filter)
-        decoder_readout = get_readout('decoder', input_shape[1], decoder_filter)
-        layers_config = (
+        decoder_readout = get_readout('decoder', n_inputs, decoder_filter)
+        return (
             encoder_config + encoder_readout + decoder_config + decoder_readout
         )
-        # Initialize the auto-encoder network.
-        super().__init__(
-            input_shape, n_targets, layers_config, optimizer=optimizer
-        )
-        # Record initialization arguments.
-        self._init_arguments['encoder_config'] = encoder_config
-        self._init_arguments['decoder_config'] = decoder_config
-        self._init_arguments['encoder_filter'] = encoder_filter
-        self._init_arguments['decoder_filter'] = decoder_filter
-        # Remove inherited arguments which are of no use.
-        self._init_arguments.pop('norm_params')
-        self._init_arguments.pop('top_filter')
 
     def _adjust_init_arguments_for_saving(self):
         """Adjust `_init_arguments` attribute before dumping the model.
@@ -103,16 +134,19 @@ class AutoEncoder(MultilayerPerceptron):
     @onetimemethod
     def _build_readouts(self):
         """Build wrappers of the network's predictions and errors."""
-        def build_readouts(part, true_data):
+        def build_readouts(part, true_data, norm_params=None):
             """Build the error readouts of a part of the network."""
-            output = self.layers.get(
+            raw_output = self.layers.get(
                 part + '_top_filter', self.layers[part + '_readout']
             ).output
+            output, _ = refine_signal(
+                raw_output, norm_params, None, self.holders.get('_delta', None)
+            )
             readouts = build_rmse_readouts(output, true_data)
             for name, readout in readouts.items():
                 self.readouts[part + '_' + name] = readout
         # Use the previous function to build partial RMSE readouts.
-        build_readouts('encoder', self.holders['targets'])
+        build_readouts('encoder', self.holders['targets'], self.norm_params)
         build_readouts('decoder', self.holders['input'])
         #
         self.readouts['rmse'] = tf.concat([
