@@ -76,6 +76,8 @@ class AutoEncoder(MultilayerPerceptron):
         # Record initialization arguments.
         self._init_arguments['encoder_config'] = encoder_config
         self._init_arguments['decoder_config'] = decoder_config
+        self._init_arguments['encoder_filter'] = encoder_filter
+        self._init_arguments['decoder_filter'] = decoder_filter
         # Remove inherited arguments which are of no use.
         self._init_arguments.pop('norm_params')
         self._init_arguments.pop('top_filter')
