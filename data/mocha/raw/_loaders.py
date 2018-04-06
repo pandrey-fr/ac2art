@@ -4,7 +4,6 @@
 
 import os
 
-import resampy
 import numpy as np
 from sphfile import SPHFile
 
@@ -75,8 +74,7 @@ def load_larynx(filename):
     """
     speaker = filename.split('_')[0]
     path = os.path.join(RAW_FOLDER, speaker, filename + '.lar')
-    signal = load_sphfile(path, 16000, 0, 1).signal
-    return resampy.resample(signal, 16000, 500, axis=0)
+    return load_sphfile(path, 16000, 200, 2).get_rms_energy()
 
 
 def load_ema(filename, columns_to_keep=None):
@@ -112,10 +110,9 @@ def load_ema(filename, columns_to_keep=None):
     if 'larynx' in column_names:
         larynx = load_larynx(filename) * 10
         if len(larynx) > len(ema_data):
-            larynx = np.expand_dims(larynx[:len(ema_data)], 1)
+            larynx = larynx[:len(ema_data)]
         else:
             ema_data = ema_data[:len(larynx)]
-            larynx = np.expand_dims(larynx, 1)
         ema_data = np.concatenate([ema_data, larynx], axis=1)
     # Smooth the signal, as recordings are pretty bad.
     ema_data = lowpass_filter(ema_data, cutoff=20, sample_rate=500)
