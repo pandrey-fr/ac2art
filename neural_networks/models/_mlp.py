@@ -152,12 +152,11 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         Return the channel-wise root mean square prediction error
         of the network on the full set of samples.
         """
-        # Declare containers.
-        n_total = sum(len(samples) for samples in input_corpus)
         # Compute sample-wise scores.
         scores = np.array([
-            self.score(input_data, targets) * len(input_data)
+            np.square(self.score(input_data, targets)) * len(input_data)
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
-        # Reduce scores and return them
+        # Reduce scores and return them.
+        n_total = sum(len(samples) for samples in input_corpus)
         return np.sqrt(np.sum(scores, axis=0) / n_total)
