@@ -157,7 +157,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Compute sample-wise scores.
         scores = np.array([
             self.score(input_data, targets) * len(input_data)
-            for input_data, targets in zip(input_data, targets_corpus)
+            for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Reduce scores and return them
         return np.sqrt(np.sum(scores, axis=0) / n_total)
