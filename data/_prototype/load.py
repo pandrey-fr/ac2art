@@ -51,7 +51,7 @@ def build_setup_functions(corpus, default_byspeaker):
         kwargs = locals()
         nonlocal loading_setup
         for key, argument in kwargs.items():
-            if argument is not None:
+            if argument is not None and key != 'loading_setup':
                 loading_setup[key] = argument
 
     def get_loading_setup():
