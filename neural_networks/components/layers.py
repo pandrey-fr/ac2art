@@ -47,7 +47,7 @@ class NeuralLayer:
         # note: loosely based on Glorot, X. & Bengio, Y. (2010)
         if self.activation is tf.nn.relu:
             stddev = np.sqrt(2 / weight_dim[0])
-            initial = tf.truncated_normal(weight_dim, mean=.1, stddev)
+            initial = tf.truncated_normal(weight_dim, mean=.1, stddev=stddev)
         elif self.activation in [tf.identity, tf.nn.tanh, tf.nn.softmax]:
             stddev = np.sqrt(3 / weight_dim[0])
             initial = tf.truncated_normal(weight_dim, mean=0, stddev=stddev)
