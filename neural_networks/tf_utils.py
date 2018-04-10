@@ -78,7 +78,7 @@ def minimize_safely(optimizer, loss, var_list=None, reduce_fn=None):
     var_list  : optional list of tf.Variable elements to optimize
     reduce_fn : optional tensorflow operation to use so as to derive
                 the default value by which to replace NaN values
-                (by default, NaN are replaced with 1.0)
+                (by default, NaNs are replaced with 0.)
     """
     # Compute the gradients.
     gradients = optimizer.compute_gradients(loss=loss, var_list=var_list)
@@ -88,7 +88,7 @@ def minimize_safely(optimizer, loss, var_list=None, reduce_fn=None):
         default = tf.cond(
             tf.reduce_sum(tf.cast(tf.is_finite(gradient), tf.float32)) > 0,
             lambda: (
-                tf.ones_like(gradient) if reduce_fn is None
+                tf.zeros_like(gradient) if reduce_fn is None
                 else tf.ones_like(gradient) * reduce_fn(gradient)
             ),
             lambda: tf.zeros_like(gradient),
