@@ -43,10 +43,18 @@ class NeuralLayer:
         if pooling is not None and not inspect.isfunction(pooling):
             raise TypeError("'pooling' should be a function or None.")
         self.pooling = pooling
+        # Adjust the initial weights depending on the activation function.
+        # note: loosely based on Glorot, X. & Bengio, Y. (2010)
+        if self.activation is tf.nn.relu:
+            stddev = np.sqrt(2 / weight_dim[0])
+            initial = tf.truncated_normal(weight_dim, mean=.1, stddev)
+        elif self.activation in [tf.identity, tf.nn.tanh, tf.nn.softmax]:
+            stddev = np.sqrt(3 / weight_dim[0])
+            initial = tf.truncated_normal(weight_dim, mean=0, stddev=stddev)
+        else:
+            initial = tf.truncated_normal(weight_dim, mean=0, stddev=.1)
         # Set up the weight and bias terms of the layer's units.
-        self.weight = tf.Variable(
-            tf.truncated_normal(weight_dim, stddev=.1), name=name + '_weight'
-        )
+        self.weight = tf.Variable(initial, name=name + '_weight')
         if bias:
             self.bias = tf.Variable(
                 tf.constant(0.1, shape=weight_dim[-1:]), name=name + '_bias'
