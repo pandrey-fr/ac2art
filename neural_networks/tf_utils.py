@@ -23,8 +23,7 @@ def conv2d(input_data, weights):
 
 
 ACTIVATION_FUNCTIONS = {
-    'identity': tf.identity, 'binary': binary_step,
-    'leaky_relu': tf.nn.leaky_relu, 'relu': tf.nn.relu,
+    'identity': tf.identity, 'binary': binary_step, 'relu': tf.nn.relu,
     'sigmoid': tf.nn.sigmoid, 'softmax': tf.nn.softmax,
     'softplus': tf.nn.softplus, 'tanh': tf.nn.tanh
 }
