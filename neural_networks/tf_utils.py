@@ -102,6 +102,32 @@ def minimize_safely(optimizer, loss, var_list=None, reduce_fn=None):
     return optimizer.apply_gradients(gradients)
 
 
+def reduce_finite_mean(tensor, axis=None):
+    """Compute the mean of finite elements across a tensor's dimensions.
+
+    tensor : numeric-type tensor to reduce
+    axis   : optional dimension index along which to reduce (int, default None)
+    """
+    # Check argument's type validity.
+    check_type_validity(tensor, tf.Tensor, 'tensor')
+    check_type_validity(axis, (int, type(None)), 'axis')
+    # Compute the number of non-Nan elements across the reduction axis.
+    is_finite = tf.is_finite(tensor)
+    if axis is None:
+        length = tf.reduce_sum(tf.ones_like(tensor, dtype=tf.int32))
+    elif axis == 0:
+        length = tensor_length(tensor)
+    else:
+        perm = [{0: axis, axis: 0}.get(i, i) for i in range(len(tensor.shape))]
+        length = tensor_length(tf.transpose(tensor, perm=perm))
+    n_obs = length - tf.reduce_sum(tf.cast(is_finite, tf.int32), axis=axis)
+    # Compute the sum of non-Nan elements across the reduction axis.
+    filled = tf.where(is_finite, tf.zeros_like(tensor), tensor)
+    sums = tf.reduce_sum(filled, axis=axis)
+    # Retun the mean(s) across the reduction axis.
+    return sums / tf.cast(n_obs, tf.float32)
+
+
 def setup_activation_function(activation):
     """Validate and return a tensorflow activation function.
 

@@ -9,7 +9,7 @@ import numpy as np
 
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork, build_rmse_readouts
-from neural_networks.tf_utils import minimize_safely
+from neural_networks.tf_utils import minimize_safely, reduce_finite_mean
 from neural_networks.utils import raise_type_error, onetimemethod
 
 
@@ -122,7 +122,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Build a function optimizing the neural layers' weights.
         fit_weights = minimize_safely(
             self.optimizer, loss=self.readouts['rmse'],
-            var_list=self._neural_weights, reduce_fn=tf.reduce_mean
+            var_list=self._neural_weights, reduce_fn=reduce_finite_mean
         )
         # If appropriate, build a function optimizing the filters' cutoff.
         if self._filter_cutoffs:
