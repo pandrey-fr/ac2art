@@ -107,7 +107,7 @@ class AutoEncoder(MultilayerPerceptron):
             top_filter = validate_layer_config(top_filter)
             top_filter[2].setdefault('name', part + '_top_filter')
             return [readout_layer, top_filter]
-            
+
         # Aggregate the encoder's and decoder's layers.
         encoder_readout = get_readout('encoder', n_targets, encoder_filter)
         decoder_readout = get_readout('decoder', n_inputs, decoder_filter)
