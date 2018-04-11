@@ -362,7 +362,9 @@ def load_dumped_model(filename, model=None):
         if key not in config.keys()
     ]
     if missing_keys:
-        raise KeyError("Invalid model dump. Missing key(s): %s." % missing_keys)
+        raise KeyError(
+            "Invalid model dump. Missing key(s): %s." % missing_keys
+        )
     # If no model was provided, instantiate one.
     new_model = model is None
     if new_model:

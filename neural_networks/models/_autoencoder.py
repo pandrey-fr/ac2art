@@ -96,6 +96,7 @@ class AutoEncoder(MultilayerPerceptron):
         # Conduct minimal necessary tests. More are run later on.
         check_type_validity(encoder_config, list, 'encoder_config')
         check_type_validity(decoder_config, list, 'decoder_config')
+
         # Define a function specifying readout layers.
         def get_readout(part, n_units, top_filter):
             """Return the configuration of a network part's readout layer."""
@@ -106,6 +107,7 @@ class AutoEncoder(MultilayerPerceptron):
             top_filter = validate_layer_config(top_filter)
             top_filter[2].setdefault('name', part + '_top_filter')
             return [readout_layer, top_filter]
+            
         # Aggregate the encoder's and decoder's layers.
         encoder_readout = get_readout('encoder', n_targets, encoder_filter)
         decoder_readout = get_readout('decoder', n_inputs, decoder_filter)

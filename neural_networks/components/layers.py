@@ -96,7 +96,6 @@ class NeuralLayer:
             session.run(self.bias.initializer)
         session.run(self.weight.initializer)
 
-
     def get_values(self, session):
         """Return the layer's weight and bias current values.
 

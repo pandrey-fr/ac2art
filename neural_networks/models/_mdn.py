@@ -163,6 +163,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Build a function to minimize the prediction error.
         super()._build_training_function()
         minimize_rmse = self.training_function
+
         # Declare a two-fold train step function.
         def train_step(fit='likelihood'):
             """Modular training step, depending on the metric to use."""
@@ -174,6 +175,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
                 return minimize_rmse
             else:
                 raise ValueError("Unknown cost function '%s'." % fit)
+
         # Assign the network's train step function.
         self.training_function = train_step
 

@@ -71,8 +71,11 @@ def get_object_name(func_or_type, reference_dict):
     reference_dict : a dict associating some expected functions
                      or types to str keys
     """
-    if not (inspect.isfunction(func_or_type) or isinstance(func_or_type, type)):
-        raise_type_error('func_or_type', ('function', type), type(func_or_type))
+    valid = inspect.isfunction(func_or_type) or isinstance(func_or_type, type)
+    if not valid:
+        raise_type_error(
+            'func_or_type', ('function', type), type(func_or_type)
+        )
     check_type_validity(reference_dict, dict, 'reference_dict')
     keys = list(reference_dict.values())
     if func_or_type not in keys:

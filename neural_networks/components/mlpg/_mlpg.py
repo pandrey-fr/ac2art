@@ -69,14 +69,11 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     tf.assert_equal(means.shape[1], stds.shape[1])
     # Pile up the static and dynamic parameters.
     n_targets = means.shape[1].value // 3
-    def stack_parameters(tensor):
-        """Pile up the values related to static, delta and delta targets."""
-        return tf.concat([
+    for tensor in (means, stds):
+        tensor = tf.concat([
             tensor[:, i:i + n_targets]
             for i in range(0, 3 * n_targets, n_targets)
         ], axis=0)
-    means = stack_parameters(means)
-    stds = stack_parameters(stds)
     # Generate the most likely trajectory for each target dimension.
     features = tf.concat([
         generate_univariate_trajectory(means[:, k], stds[:, k], weights)
@@ -115,6 +112,7 @@ def generate_trajectory_from_gaussian_mixture(
     tf.assert_rank(means, 3)
     tf.assert_rank(stds, 3)
     check_positive_int(n_steps, 'n_steps')
+
     # Set up the expectation step function.
     def generate_trajectory(means_sequence, stds_sequence):
         """Generate a trajectory and density-based metrics."""
@@ -128,6 +126,7 @@ def generate_trajectory_from_gaussian_mixture(
             tf.log(tf.reduce_sum(densities, axis=1) + 1e-30)
         )
         return features, densities, log_likelihood
+
     # Set up the maximization step function.
     def generate_parameters(densities):
         """Generate a parameters sequence using occupancy probabilities."""
@@ -139,6 +138,7 @@ def generate_trajectory_from_gaussian_mixture(
             tf.reduce_sum(occupancy * means, axis=1),
             tf.reduce_sum(occupancy * stds, axis=1)
         )
+
     # Set up a function running an E-M algorithm step.
     def run_step(index, previous_traject, previous_dens, previous_ll):
         """Run an iteration of the E-M algorithm for trajectory selection."""
@@ -153,6 +153,7 @@ def generate_trajectory_from_gaussian_mixture(
             lambda: (index + 1, trajectory, densities, log_likelihood),
             lambda: (n_steps, previous_traject, previous_dens, previous_ll)
         )
+
     # Choose an initial trajectory, using the component's priors as weights.
     init_trajectory, init_densities, init_ll = generate_trajectory(
         tf.reduce_sum(tf.expand_dims(priors, 2) * means, axis=1),

@@ -180,6 +180,7 @@ class GenerativeAdversarialNets:
                 var_list=self.generator._filter_cutoffs
             )
             fit_generator = (fit_generator, fit_filter)
+
         # pylint: enable=protected-access
         # Build a wrapper for the network's training functions.
         def training_function(model):
@@ -192,6 +193,7 @@ class GenerativeAdversarialNets:
                 return (fit_discriminator, fit_generator)
             else:
                 raise KeyError("Invalid model key: '%s'." % model)
+
         # Assign the wrapper as the instance's training function.
         self.training_function = training_function
 
@@ -204,12 +206,14 @@ class GenerativeAdversarialNets:
                       and iterate over so as to fit both networks
                       (positive int, default 10)
         """
-        # Cut the data into subsamples and define a training procedure.
+        # Cut the data into subsamples.
         size = len(input_data) // n_iter
         samples = [
             list(range(i, i + size))
             for i in range(0, len(input_data) - size, size)
         ]
+
+        # Define a training procedure.
         def train_network(network):
             """Iteratively fit a network using the different data samples."""
             for sample in np.random.permutation(samples):
@@ -217,10 +221,10 @@ class GenerativeAdversarialNets:
                     input_data[sample], target_data[sample]
                 )
                 self.session.run(self.training_function(network), feed)
+
         # Train the discriminator network, and then the generator one.
         train_network('discriminator')
         train_network('generator')
-
 
     def score(self, input_data, target_data):
         """Score both networks based on the provided data.
