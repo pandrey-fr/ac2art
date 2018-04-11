@@ -14,14 +14,16 @@ from data.utils import CONSTANTS, import_from_string
 def build_setup_functions(corpus, default_byspeaker):
     """Build functions to view and alter a dict of loading arguments."""
     # Declare the loading setup dict.
+    extension = '_byspeaker' if default_byspeaker else ''
     loading_setup = {
-        'audio_type': 'mfcc_stds' + ('_byspeaker' if default_byspeaker else ''),
+        'audio_type': 'mfcc_stds' + extension,
         'context_window': 5,
         'dynamic_ema': True,
-        'ema_norm': 'mean' + ('_byspeaker' if default_byspeaker else ''),
+        'ema_norm': 'mean' + extension,
         'zero_padding': True
     }
     # Define functions to manipulate the former dict.
+
     def change_loading_setup(
             audio_type=None, context_window=None, dynamic_ema=None,
             ema_norm=None, zero_padding=None
@@ -76,6 +78,7 @@ def build_file_loaders(corpus):
         'data.%s.raw._loaders' % corpus, 'get_utterances_list'
     )
     # Define the four loading functions.
+
     def get_norm_parameters(file_type, speaker=None):
         """Return normalization parameters for a type of {0} features.
 
@@ -122,15 +125,17 @@ def build_file_loaders(corpus):
         path = os.path.join(data_folder, folder, name + '_%s.npy' % audio_type)
         acoustic = np.load(path)
         if context_window:
-            return build_context_windows(acoustic, context_window, zero_padding)
+            acoustic = (
+                build_context_windows(acoustic, context_window, zero_padding)
+            )
         return acoustic
 
     def load_ema(name, norm_type='', use_dynamic=True):
         """Load the articulatory data associated with an utterance from {0}.
 
-        name           : name of the utterance whose data to load (str)
-        norm_type      : optional type of normalization to use (str)
-        use_dynamic    : whether to return dynamic features (bool, default True)
+        name        : name of the utterance whose data to load (str)
+        norm_type   : optional type of normalization to use (str)
+        use_dynamic : whether to return dynamic features (bool, default True)
         """
         nonlocal data_folder, get_norm_parameters
         ema_folder = (
@@ -162,6 +167,7 @@ def build_loading_functions(corpus, default_byspeaker):
         build_file_loaders(corpus)
     )
     # Define the major loading functions.
+
     def load_utterance(name, **kwargs):
         """Load both acoustic and articulatory data of an mngu0 utterance.
 
@@ -197,8 +203,9 @@ def build_loading_functions(corpus, default_byspeaker):
         and `change_loading_setup`, all from the `data.{0}.load` module.
         """
         nonlocal get_utterances, load_utterance
-        fileset = get_utterances(set_name)
-        dataset = np.array([load_utterance(name, **kwargs) for name in fileset])
+        dataset = np.array([
+            load_utterance(name, **kwargs) for name in get_utterances(set_name)
+        ])
         acoustic = np.array([utterance[0] for utterance in dataset])
         ema = np.array([utterance[1] for utterance in dataset])
         if concatenate:

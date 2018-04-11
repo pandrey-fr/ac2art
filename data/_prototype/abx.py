@@ -24,6 +24,7 @@ def build_h5features_extractor(corpus):
         ['load_acoustic', 'load_ema', 'get_utterances']
     )
     # Define features extraction functions.
+
     def _setup_features_loader(
             audio_features, ema_features, inverter, dynamic_ema
         ):
@@ -42,7 +43,7 @@ def build_h5features_extractor(corpus):
                 )
             elif ema_features is not None:
                 raise RuntimeError(
-                    'Both articulatory features and an inverter were specified.'
+                    'Both ema features and an inverter were specified.'
                 )
         # Build the acoustic features loading function.
         if audio_features is not None:
@@ -106,7 +107,7 @@ def build_h5features_extractor(corpus):
         utterances = get_utterances()
         with h5f.Writer(output_file) as writer:
             for i in range(0, len(utterances), 100):
-                # Load or compute the utterances list, features and time labels.
+                # Load or compute utterances list, features and time labels.
                 items = utterances[i:i + 100]
                 features = [load_features(item) for item in items]
                 labels = [
@@ -134,6 +135,7 @@ def build_abxpy_callers(corpus):
         'data.%s.raw._loaders' % corpus, 'load_phone_labels'
     )
     # Define the functions.
+
     def _phones_to_itemfile(utterance):
         """Build a dict of item file rows for a given utterance."""
         nonlocal load_phone_labels
@@ -212,7 +214,7 @@ def build_abxpy_callers(corpus):
         output_file = os.path.join(abx_folder, features_filename + extension)
         # Check that the features file exists.
         if not os.path.exists(features_file):
-            raise FileNotFoundError("File '%s' does not exist." % features_file)
+            raise FileNotFoundError("No such file: '%s'." % features_file)
         # Build the ABX task file if necessary.
         if not os.path.isfile(task_file):
             make_abx_task(fileset)

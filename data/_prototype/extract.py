@@ -47,6 +47,7 @@ DOC_EXTRACT_ARGUMENTS = """
 def build_arguments_checker(dataset, default_articulators):
     """Define and return a function checking features extraction arguments."""
     new_folder = CONSTANTS['%s_processed_folder' % dataset]
+
     def control_arguments(
             audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_size
@@ -66,9 +67,9 @@ def build_arguments_checker(dataset, default_articulators):
         check_positive_int(ema_sampling_rate, 'ema_sampling_rate')
         check_positive_int(audio_frames_size, 'audio_frames_size')
         # Check audio_forms argument validity.
-        _audio_forms = ['lpc', 'lsf', 'mfcc']
+        valid_forms = ['lpc', 'lsf', 'mfcc']
         if audio_forms is None:
-            audio_forms = _audio_forms
+            audio_forms = valid_forms
         else:
             if isinstance(audio_forms, str):
                 audio_forms = [audio_forms]
@@ -76,7 +77,7 @@ def build_arguments_checker(dataset, default_articulators):
                 audio_forms = list(audio_forms)
             else:
                 check_type_validity(audio_forms, list, 'audio_forms')
-            invalid = [name for name in audio_forms if name not in _audio_forms]
+            invalid = [name for name in audio_forms if name not in valid_forms]
             if invalid:
                 raise ValueError(
                     "Unknown audio representation(s): %s." % invalid
@@ -93,6 +94,7 @@ def build_arguments_checker(dataset, default_articulators):
             check_type_validity(articulators_list, list, 'articulators_list')
         # Return potentially altered list arguments.
         return audio_forms, articulators_list
+
     # Return the defined function.
     return control_arguments
 
@@ -109,6 +111,7 @@ def build_extractor(dataset, initial_sampling_rate):
         module='data.%s.raw._loaders' % dataset,
         elements=['load_ema', 'load_phone_labels', 'load_wav']
     )
+
     def extract_data(
             utterance, audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_size
@@ -179,6 +182,7 @@ def build_features_extraction_functions(
     extract_data = build_extractor(dataset, initial_sampling_rate)
     # Format the functions' arguments' docstring.
     arguments_docstring = DOC_EXTRACT_ARGUMENTS.format(docstring_details)
+
     # Define a function extracting features from a single utterance.
     def extract_utterance_data(
             utterance, audio_forms=None, n_coeff=12, articulators_list=None,
@@ -214,6 +218,7 @@ def build_features_extraction_functions(
     get_utterances_list = import_from_string(
         'data.%s.raw._loaders' % dataset, 'get_utterances_list'
     )
+
     # Define a function extracting features from all utterances.
     def extract_all_utterances(
             audio_forms=None, n_coeff=12, articulators_list=None,
@@ -243,6 +248,7 @@ def build_features_extraction_functions(
             end_time = time.asctime().split(' ')[-2]
             print('%s : Done with utterance %s.' % (end_time, utterance))
             sys.stdout.write('\033[F')
+
     # Adjust the function's docstring.
     extract_all_utterances.__doc__ = extract_all_utterances.__doc__.format(
         dataset, DOC_EXTRACT_DETAILS, arguments_docstring

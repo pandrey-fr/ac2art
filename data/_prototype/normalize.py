@@ -16,6 +16,7 @@ def build_normalization_functions(dataset):
     get_utterances_list, speakers = import_from_string(
         'data.%s.raw._loaders' % dataset, ['get_utterances_list', 'SPEAKERS']
     )
+
     # Wrap the normalization parameters computing function.
     def compute_moments(file_type, by_speaker=False, store=True):
         """Compute files moments."""
@@ -32,6 +33,7 @@ def build_normalization_functions(dataset):
         return _compute_moments(
             file_type, None, store, main_folder, get_utterances_list
         )
+
     # Wrap the files normalization functon.
     def normalize_files(file_type, norm_type, by_speaker=False):
         """Normalize a set of files."""

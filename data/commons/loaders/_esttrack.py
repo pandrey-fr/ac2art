@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Class to handle EST Track files used in the Mocha-Timit and mngu0 corpora."""
+"""Class to handle EST Track files from the Mocha-Timit and mngu0 corpora."""
 
 import numpy as np
 

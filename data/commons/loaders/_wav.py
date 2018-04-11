@@ -175,18 +175,14 @@ def linear_predictive_coding(frames, n_coeff=20):
         scipy.linalg.solve_toeplitz(autocorr[:-1], autocorr[1:])
         for autocorr in autocorrelations
     ])
-    # Compute the frame-wise root mean squared error term.
-    def punctual_error(index):
-        """Return prediction errors at a given sample index."""
-        return frames[:, index] - np.sum(
-            lpc * frames[:, index - n_coeff:index][:, ::-1], axis=1
-        )
-    error = np.sqrt(np.sum(
-        [punctual_error(i) ** 2 for i in range(n_coeff, frames.shape[1])],
-        axis=0
-    ))
+    # Compute the frame_wise root mean squared prediction errors.
+    frame_wise_errors = np.array([
+        frames[:, i] - np.sum(lpc * frames[:, i - n_coeff:i][:, ::-1], axis=1)
+        for i in range(n_coeff, frames.shape[1])
+    ])
+    frames_rmse = np.sqrt(np.mean(np.square(frame_wise_errors), axis=0))
     # Return the LPC coefficients and error terms.
-    return lpc, error
+    return lpc, frames_rmse
 
 
 def lpc_to_lsf(lpc_coefficients):
@@ -233,6 +229,14 @@ def lpc_to_lsf(lpc_coefficients):
     return lsf
 
 
+def roots_to_polynoms(roots):
+    """Convert an array of roots to polynomial coefficients."""
+    roots = np.concatenate([roots, np.conjugate(roots)], axis=1)
+    return np.array([
+        np.poly(polynom_roots) for polynom_roots in roots
+    ])
+
+
 def lsf_to_lpc(lsf_coefficients):
     """Turn a numpy.ndarray of LSF coefficients to LPC coefficients.
 
@@ -240,12 +244,6 @@ def lsf_to_lpc(lsf_coefficients):
     """
     # Restore polynomials based on the LSF coefficients.
     roots = np.exp(lsf_coefficients * complex(0, 1))
-    def roots_to_polynoms(roots):
-        """Convert an array of roots to polynomial coefficients."""
-        roots = np.concatenate([roots, np.conjugate(roots)], axis=1)
-        return np.array([
-            np.poly(polynom_roots) for polynom_roots in roots
-        ])
     p_polynoms = roots_to_polynoms(roots[:, 1::2])
     q_polynoms = roots_to_polynoms(roots[:, ::2])
     # Restore omitted polynomial roots based on LSF order parity.

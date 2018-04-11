@@ -88,7 +88,7 @@ def abxpy_score(distance_file, task_file, output):
     cmd = ' '.join(('python2', score, task_file, distance_file, output))
     status = os.system(cmd)
     if status != 0:
-        raise RuntimeError("ABXpy score.py ended with status code %s." % status)
+        raise RuntimeError("ABXpy score.py returned status code %s." % status)
     print('ABXpy score module was successfully run.')
 
 

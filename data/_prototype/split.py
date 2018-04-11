@@ -23,6 +23,7 @@ def build_triphones_indexer(limit, corpus):
         module='data.%s.raw._loaders' % corpus,
         elements=['load_phone_labels', 'get_utterances_list']
     )
+
     # Define an auxiliary function to read an utterance's triphones.
     def load_triphones(name):
         """Load the set of triphones contained in a given utterance."""
@@ -31,6 +32,7 @@ def build_triphones_indexer(limit, corpus):
             '_'.join([phone[1] for phone in labels[i:i + 3]])
             for i in range(len(labels) - 2)
         }
+
     # Gather the sets of utterances' triphones and the full list of these.
     utterances = {
         name: load_triphones(name) for name in get_utterances_list()

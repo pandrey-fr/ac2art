@@ -6,7 +6,7 @@
 def build_utterances_getter(get_speaker_utterances, speakers, corpus):
     """Build a function returning lists of utterances of a corpus."""
     def get_utterances_list(speaker=None):
-        """Return the list of {0} utterances associated with a given speaker."""
+        """Return the list of {0} utterances from a given speaker."""
         nonlocal speakers, get_speaker_utterances
         if speaker is None:
             return [
