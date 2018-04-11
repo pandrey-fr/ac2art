@@ -46,13 +46,12 @@ class NeuralLayer:
         # Adjust the initial weights depending on the activation function.
         # note: loosely based on Glorot, X. & Bengio, Y. (2010)
         if self.activation is tf.nn.relu:
-            stddev = np.sqrt(2 / weight_dim[0])
-            initial = tf.truncated_normal(weight_dim, mean=.1, stddev=stddev)
-        elif self.activation in [tf.identity, tf.nn.tanh, tf.nn.softmax]:
-            stddev = np.sqrt(3 / weight_dim[0])
-            initial = tf.truncated_normal(weight_dim, mean=0, stddev=stddev)
+            stddev = np.sqrt(2 / weight_dim[-1])
+        elif self.activation in [tf.nn.tanh, tf.nn.softmax]:
+            stddev = np.sqrt(3 / weight_dim[-1])
         else:
-            initial = tf.truncated_normal(weight_dim, mean=0, stddev=.1)
+            stddev = .1
+        initial = tf.truncated_normal(weight_dim, mean=0, stddev=stddev)
         # Set up the weight and bias terms of the layer's units.
         self.weight = tf.Variable(initial, name=name + '_weight')
         if bias:
