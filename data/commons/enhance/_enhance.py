@@ -10,12 +10,36 @@ def add_dynamic_features(static_features, window=5):
     """Build delta and deltadelta features on top of static ones.
 
     static_features : 2-D numpy.ndarray of static features to enhance
-    window          : half-size of the window used in the computation
+    window          : half-size of the time window used (int, default 5)
     """
-    weights = build_dynamic_weights_matrix(len(static_features), window)
-    delta = np.dot(weights, static_features)
-    deltadelta = np.dot(weights, delta)
+    delta = get_delta_features(static_features, window)
+    deltadelta = get_delta_features(delta, window)
     return np.concatenate([static_features, delta, deltadelta], axis=1)
+
+
+def get_delta_features(static_features, window=5):
+    """Compute and return delta features, using a given time window.
+
+    static_features : 2-D numpy.ndarray of values whose delta to compute
+    window          : half-size of the time window used (int, default 5)
+    """
+    norm = 2 * np.sum(i ** 2 for i in range(1, window + 1))
+    return np.sum(
+        get_simple_difference(lag) * lag for lag in range(1, window + 1)
+    ) / norm
+
+
+def get_simple_difference(array, lag):
+    """Compute and return the simple difference of a series for a given lag.
+
+    array : 2-D numpy.ndarray whose first dimension is time
+    lag   : lag to use, so that the difference at time t is
+            between values at times t + lag and t - lag
+    """
+    padding = np.ones((lag, array.shape[1]))
+    past = np.concatenate([padding * array[0], array[:-lag]])
+    future = np.concatenate([array[lag:], padding * array[-1]])
+    return future - past
 
 
 def build_context_windows(audio_frames, window=5, zero_padding=True):
@@ -53,7 +77,7 @@ def build_dynamic_weights_matrix(size, window, complete=False):
                both static, delta and deltadelta features instead
                of the sole delta-computing weights (bool, default False)
     """
-    # Declare stuff.
+    # Declare default non-zero weights arrays.
     w_norm = 3 / (window * (window + 1) * (2 * window + 1))
     w_future = np.array([i * w_norm for i in range(1, window + 1)])
     w_past = -1 * w_future[::-1]
