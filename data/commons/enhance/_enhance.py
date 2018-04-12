@@ -17,15 +17,15 @@ def add_dynamic_features(static_features, window=5):
     return np.concatenate([static_features, delta, deltadelta], axis=1)
 
 
-def get_delta_features(static_features, window=5):
+def get_delta_features(array, window=5):
     """Compute and return delta features, using a given time window.
 
-    static_features : 2-D numpy.ndarray of values whose delta to compute
-    window          : half-size of the time window used (int, default 5)
+    array  : 2-D numpy.ndarray of values whose delta to compute
+    window : half-size of the time window used (int, default 5)
     """
     norm = 2 * np.sum(i ** 2 for i in range(1, window + 1))
     return np.sum(
-        get_simple_difference(lag) * lag for lag in range(1, window + 1)
+        get_simple_difference(array, lag) * lag for lag in range(1, window + 1)
     ) / norm
 
 
