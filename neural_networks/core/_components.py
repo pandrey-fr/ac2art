@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.core import build_layers_stack
-from neural_networks.tf_utils import tensor_length
+from neural_networks.tf_utils import get_delta_features
 
 
 def build_dynamic_weights_matrix(size, window, complete=False):
@@ -33,8 +33,8 @@ def build_dynamic_weights_matrix(size, window, complete=False):
 
     def past_weights(time):
         """Build and return the weights for indices 0 to time."""
-        pads = tf.zeros(tf.maximum(0, time - window - 1))
-        boundary = tf.maximum(0, window - time + 1)
+        pads = tf.zeros(tf.maximum(0, time - window))
+        boundary = tf.maximum(1, window - time + 1)
         first = tf.reduce_sum(w_past[:boundary], keepdims=True)
         return tf.concat([pads, first, w_past[boundary:]], axis=0)[:size - 1]
 
@@ -110,12 +110,8 @@ def refine_signal(
         signal = top_filter.output
     # Optionally add dynamic features to the signal.
     if add_dynamic:
-        dynamic_weights = build_dynamic_weights_matrix(
-            tensor_length(signal), window=5, complete=False
-        )
-        delta_features = tf.matmul(dynamic_weights, signal)
-        signal = tf.concat([
-            signal, delta_features, tf.matmul(dynamic_weights, delta_features)
-        ], axis=1)
+        delta = get_delta_features(signal, window=5)
+        deltadelta = get_delta_features(delta, window=5)
+        signal = tf.concat([signal, delta, deltadelta], axis=1)
     # Return the refined signal and the defined top filter, if any.
     return signal, top_filter

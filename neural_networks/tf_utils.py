@@ -39,9 +39,35 @@ def get_activation_function_name(function):
     return get_object_name(function, ACTIVATION_FUNCTIONS)
 
 
+def get_delta_features(tensor, window=5):
+    """Compute and return delta features, using a given time window.
+
+    static_features : 2-D tensor of values whose delta to compute
+    window          : half-size of the time window used (int, default 5)
+    """
+    norm = 2 * sum(i ** 2 for i in range(1, window + 1))
+    delta = tf.add_n([
+        get_simple_difference(tensor, lag=i) * i for i in range(1, window + 1)
+    ])
+    return delta / norm
+
+
 def get_rnn_cell_type_name(cell_type):
     """Return the short name or full import name of a RNN cell type."""
     return get_object_name(cell_type, RNN_CELL_TYPES)
+
+
+def get_simple_difference(tensor, lag):
+    """Compute and return the simple difference of a series for a given lag.
+
+    tensor : 2-D tensor whose first dimension is time
+    lag    : lag to use, so that the difference at time t is
+             between values at times t + lag and t - lag
+    """
+    padding = tf.ones((lag, tensor.shape[1].value))
+    past = tf.concat([padding * tensor[0], tensor[:-lag]], axis=0)
+    future = tf.concat([tensor[lag:], padding * tensor[-1]], axis=0)
+    return future - past
 
 
 def index_tensor(tensor, start=0):
