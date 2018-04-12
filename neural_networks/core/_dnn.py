@@ -9,7 +9,6 @@ import os
 import tensorflow as tf
 import numpy as np
 
-from data.commons.enhance import build_dynamic_weights_matrix
 from neural_networks.core import (
     build_layers_stack, refine_signal, validate_layer_config
 )
@@ -207,16 +206,11 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def _build_placeholders(self):
         """Build the network's placeholders."""
         self.holders['input'] = tf.placeholder(tf.float32, self.input_shape)
+        n_targets = self.n_targets * (1 + 2 * self.use_dynamic)
+        self.holders['targets'] = tf.placeholder(
+            tf.float32, [self.input_shape[0], n_targets]
+        )
         self.holders['keep_prob'] = tf.placeholder(tf.float32, ())
-        if self.use_dynamic:
-            self.holders['targets'] = tf.placeholder(
-                tf.float32, [self.input_shape[0], 3 * self.n_targets]
-            )
-            self.holders['_delta'] = tf.placeholder(tf.float32, [None, None])
-        else:
-            self.holders['targets'] = tf.placeholder(
-                tf.float32, [self.input_shape[0], self.n_targets]
-            )
 
     @onetimemethod
     def _build_hidden_layers(self):
@@ -259,7 +253,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Refine the network's initial prediction."""
         prediction, top_filter = refine_signal(
             self.readouts['raw_prediction'], self.norm_params,
-            self.top_filter, self.holders.get('_delta', None)
+            self.top_filter, self.use_dynamic
         )
         self.readouts['prediction'] = prediction
         if top_filter is not None:
@@ -303,11 +297,6 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         }
         if targets is not None:
             feed_dict[self.holders['targets']] = targets
-        if self.use_dynamic:
-            weights = build_dynamic_weights_matrix(
-                len(input_data), window=5, complete=True
-            )
-            feed_dict[self.holders['_delta']] = weights
         return feed_dict
 
     def run_training_function(self, input_data, targets, keep_prob=1):
