@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from data.commons.enhance import build_context_windows
+from data.commons.enhance import add_dynamic_features, build_context_windows
 from data._prototype.normalize import _get_normfile_path
 from data.utils import CONSTANTS, import_from_string
 
@@ -147,8 +147,8 @@ def build_file_loaders(corpus):
             speaker = None if norm_type == 'mean' else name.split('_', 1)[0]
             ema -= get_norm_parameters('ema', speaker)['global_means']
         if use_dynamic:
-            return ema
-        return ema[:, :ema.shape[1] // 3]
+            ema = add_dynamic_features(ema)
+        return ema
 
     # Adjust the functions' docstrings and return them.
     functions = (get_norm_parameters, get_utterances, load_acoustic, load_ema)

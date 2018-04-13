@@ -9,7 +9,6 @@ import time
 import numpy as np
 import resampy
 
-from data.commons.enhance import add_dynamic_features
 from data.utils import (
     check_positive_int, check_type_validity, CONSTANTS,
     interpolate_missing_values, import_from_string
@@ -146,8 +145,8 @@ def build_extractor(dataset, initial_sampling_rate):
                 ema, sr_orig=initial_sampling_rate, sr_new=ema_sampling_rate,
                 axis=0
             )
-        # Add dynamic features and trim edge silences from EMA data. Save it.
-        ema = add_dynamic_features(ema)[start_frame:end_frame]
+        # Trim edge silences from EMA data and save it.
+        ema = ema[start_frame:end_frame]
         np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
         # Load the audio waveform data, structuring it into frames.
         wav = load_wav(
