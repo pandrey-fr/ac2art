@@ -4,6 +4,7 @@
 
 
 import tensorflow as tf
+import numpy as np
 
 from neural_networks.core import (
     build_rmse_readouts, refine_signal, validate_layer_config
@@ -142,7 +143,7 @@ class AutoEncoder(MultilayerPerceptron):
                 part + '_top_filter', self.layers[part + '_readout']
             ).output
             output, _ = refine_signal(
-                raw_output, norm_params, None, self.holders.get('_delta', None)
+                raw_output, norm_params, None, self.use_dynamic
             )
             readouts = build_rmse_readouts(output, true_data)
             for name, readout in readouts.items():
@@ -150,10 +151,20 @@ class AutoEncoder(MultilayerPerceptron):
         # Use the previous function to build partial RMSE readouts.
         build_readouts('encoder', self.holders['targets'], self.norm_params)
         build_readouts('decoder', self.holders['input'])
-        #
+        # Build wrappers aggregating predictions and scores of the model.
         self.readouts['rmse'] = tf.concat([
             self.readouts['encoder_rmse'], self.readouts['decoder_rmse']
         ], axis=0)
+        self.readouts['prediction'] = tf.concat([
+            self.readouts['encoder_prediction'],
+            self.readouts['decoder_prediction']
+        ], axis=1)
+
+    def predict(self, input_data):
+        """Predict the targets associated with a given set of inputs."""
+        prediction = super().predict(input_data)
+        encoded, decoded = self._split_metrics(prediction.T)
+        return encoded.T, decoded.T
 
     def score(self, input_data, targets):
         """Compute the root mean square prediction errors of the network.
@@ -165,6 +176,29 @@ class AutoEncoder(MultilayerPerceptron):
         the prediction and reconstruction by-channel root mean
         square errors.
         """
-        feed_dict = self.get_feed_dict(input_data, targets)
-        scores = [self.readouts['encoder_rmse'], self.readouts['decoder_rmse']]
-        return self.session.run(scores, feed_dict)
+        scores = super().score(input_data, targets)
+        return self._split_metrics(scores)
+
+    def score_corpus(self, input_corpus, targets_corpus):
+        """Iteratively compute the network's root mean square prediction error.
+
+        input_corpus   : sequence of input data arrays
+        targets_corpus : sequence of true targets arrays
+
+        Return the channel-wise root mean square prediction error
+        of the network on the full set of samples.
+        """
+        # Compute sample-wise errors.
+        predict = super().predict
+        errors = np.concatenate([
+            predict(input_data) - np.concatenate([targets, input_data], axis=1)
+            for input_data, targets in zip(input_corpus, targets_corpus)
+        ])
+        # Reduce scores and return them.
+        scores = np.sqrt(np.square(errors).mean(axis=0))
+        return self._split_metrics(scores)
+
+    def _split_metrics(self, metrics):
+        """Split an array aggregating encoder and decoder outputs."""
+        n_targets = self.n_targets * (3 if self.use_dynamic else 1)
+        return metrics[:n_targets], metrics[n_targets:]
