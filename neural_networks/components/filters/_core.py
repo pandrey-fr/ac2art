@@ -133,7 +133,10 @@ class SignalFilter(metaclass=ABCMeta):
         """
         if not self.learnable:
             return None
-        if not isinstance(cutoff, np.ndarray) | len(cutoff) != self.n_channels:
+        invalid = not (
+            isinstance(cutoff, np.ndarray) and len(cutoff) == self.n_channels
+        )
+        if invalid:
             raise TypeError("Invalid 'cutoff' argument.")
         session.run(tf.assign(self.cutoff, cutoff))
     # pylint: enable=inconsistent-return-statements
