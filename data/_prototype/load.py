@@ -159,7 +159,7 @@ def build_file_loaders(corpus):
             speaker = None if norm_type == 'mean' else name.split('_', 1)[0]
             ema -= get_norm_parameters('ema', speaker)['global_means']
         # Optionally drop data from unwanted articulators.
-        if isinstance(articulators, list, 'articulators'):
+        if isinstance(articulators, list):
             articulators_list = load_articulators_list(corpus)
             invalid = [
                 name for name in articulators if name not in articulators_list
