@@ -11,12 +11,21 @@ from data._prototype.normalize import _get_normfile_path
 from data.utils import CONSTANTS, import_from_string
 
 
+def load_articulators_list(corpus):
+    """Load the list of articulators contained in a corpus's data."""
+    folder = os.path.join(CONSTANTS['%s_processed_folder' % corpus], 'ema')
+    with open(os.path.join(folder, 'articulators'), encoding='utf-8') as file:
+        articulators = [row.strip('\n') for row in file]
+    return articulators
+
+
 def build_setup_functions(corpus, default_byspeaker):
     """Build functions to view and alter a dict of loading arguments."""
     # Declare the loading setup dict.
     extension = '_byspeaker' if default_byspeaker else ''
     loading_setup = {
         'audio_type': 'mfcc_stds' + extension,
+        'articulators': 'all',
         'context_window': 5,
         'dynamic_ema': True,
         'ema_norm': 'mean' + extension,
@@ -25,8 +34,8 @@ def build_setup_functions(corpus, default_byspeaker):
     # Define functions to manipulate the former dict.
 
     def change_loading_setup(
-            audio_type=None, context_window=None, dynamic_ema=None,
-            ema_norm=None, zero_padding=None
+            audio_type=None, articulators=None, context_window=None,
+            dynamic_ema=None, ema_norm=None, zero_padding=None
         ):
         """Update the default arguments used when importing {0} data.
 
@@ -36,6 +45,7 @@ def build_setup_functions(corpus, default_byspeaker):
 
         audio_type     : name of the audio features to use,
                          including normalization indications (str)
+        articulators   : list of names of articulators to load
         context_window : half-size of the context window of acoustic inputs
                          (set to zero to use single audio frames as input)
         dynamic_ema    : whether to use dynamic articulatory features
@@ -53,7 +63,7 @@ def build_setup_functions(corpus, default_byspeaker):
         kwargs = locals()
         nonlocal loading_setup
         for key, argument in kwargs.items():
-            if argument is not None and key != 'loading_setup':
+            if not (argument is None or key == 'loading_setup'):
                 loading_setup[key] = argument
 
     def get_loading_setup():
@@ -72,7 +82,7 @@ def build_setup_functions(corpus, default_byspeaker):
 
 def build_file_loaders(corpus):
     """Define and return functions to load single-file data or parameters."""
-    # Load dependency path and function.
+    # Load dependency constants and function.
     data_folder = CONSTANTS['%s_processed_folder' % corpus]
     get_utterances_list = import_from_string(
         'data.%s.raw._loaders' % corpus, 'get_utterances_list'
@@ -130,14 +140,16 @@ def build_file_loaders(corpus):
             )
         return acoustic
 
-    def load_ema(name, norm_type='', use_dynamic=True):
+    def load_ema(name, norm_type='', use_dynamic=True, articulators=None):
         """Load the articulatory data associated with an utterance from {0}.
 
-        name        : name of the utterance whose data to load (str)
-        norm_type   : optional type of normalization to use (str)
-        use_dynamic : whether to return dynamic features (bool, default True)
+        name         : name of the utterance whose data to load (str)
+        norm_type    : optional type of normalization to use (str)
+        use_dynamic  : whether to return dynamic features (bool, default True)
+        articulators : optional list of articulators to load
         """
-        nonlocal data_folder, get_norm_parameters
+        nonlocal corpus, data_folder, get_norm_parameters
+        # Load the EMA data with proper normalization.
         ema_folder = (
             'ema' if norm_type in ('', 'mean', 'mean_byspeaker')
             else 'ema_norm_' + norm_type
@@ -146,6 +158,20 @@ def build_file_loaders(corpus):
         if norm_type.startswith('mean'):
             speaker = None if norm_type == 'mean' else name.split('_', 1)[0]
             ema -= get_norm_parameters('ema', speaker)['global_means']
+        # Optionally drop data from unwanted articulators.
+        if isinstance(articulators, list, 'articulators'):
+            articulators_list = load_articulators_list(corpus)
+            invalid = [
+                name for name in articulators if name not in articulators_list
+            ]
+            if invalid:
+                raise KeyError(
+                    'Invalid articulator(s): %s.\nValid articulators are %s.'
+                    % (invalid, articulators_list)
+                )
+            cols_index = [articulators_list.index(key) for key in articulators]
+            ema = ema[:, cols_index]
+        # Optionally add dynamic features. Return the articulatory data.
         if use_dynamic:
             ema = add_dynamic_features(ema)
         return ema
@@ -185,7 +211,9 @@ def build_loading_functions(corpus, default_byspeaker):
             name, args['audio_type'], args['context_window'],
             args['zero_padding']
         )
-        ema = load_ema(name, args['ema_norm'], args['dynamic_ema'])
+        ema = load_ema(
+            name, args['ema_norm'], args['dynamic_ema'], args['articulators']
+        )
         if args['context_window'] and not args['zero_padding']:
             ema = ema[args['context_window']:-args['context_window']]
         return acoustic, ema

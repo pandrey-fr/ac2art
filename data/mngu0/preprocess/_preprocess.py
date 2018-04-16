@@ -29,9 +29,9 @@ DEFAULT_ARTICULATORS = [
 
 
 # Define functions through wrappers; pylint: disable=invalid-name
-extract_utterance_data, extract_all_utterances = (
+extract_utterances_data = (
     build_features_extraction_functions(
-        dataset='mngu0', initial_sampling_rate=200,
+        corpus='mngu0', initial_sampling_rate=200,
         default_articulators=DEFAULT_ARTICULATORS,
         docstring_details=EXTRACTION_DOC_DETAILS
     )

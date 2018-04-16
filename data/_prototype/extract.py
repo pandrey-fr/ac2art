@@ -1,6 +1,6 @@
 # coding: utf-8
 
-"""Wrapper building functions to extract data from a given dataset."""
+"""Wrapper building functions to extract data from a given corpus."""
 
 import os
 import sys
@@ -15,37 +15,9 @@ from data.utils import (
 )
 
 
-DOC_EXTRACT_DETAILS = """
-    The extractations include the following:
-      - optional resampling of the EMA data
-      - framing of audio data to align acoustic and articulatory records
-      - production of various acoustic features based on the audio data
-      - trimming of silences at the beginning and end of each utterance
-"""
-
-
-DOC_EXTRACT_ARGUMENTS = """
-    audio_forms       : optional list of representations of the audio data
-                        to produce, among {{'lsf', 'lpc', 'mfcc'}}
-                        (list of str, default None implying all of them)
-    n_coeff           : number of static coefficients to compute for each
-                        representation of the audio data (int, default 12)
-                        Note : dynamic features as well as static and
-                        dynamic energy will be included as well with
-                        each of the audio forms.
-    articulators_list : optional list of raw EMA data columns to keep
-                        (default None, implying twelve, detailed below)
-    ema_sampling_rate : sample rate of the EMA data to use, in Hz
-                        (int, default 200)
-    audio_frames_size : number of acoustic samples to include per frame
-                        (int, default 200)
-    {0}
-"""
-
-
-def build_arguments_checker(dataset, default_articulators):
+def build_arguments_checker(corpus, default_articulators):
     """Define and return a function checking features extraction arguments."""
-    new_folder = CONSTANTS['%s_processed_folder' % dataset]
+    new_folder = CONSTANTS['%s_processed_folder' % corpus]
 
     def control_arguments(
             audio_forms, n_coeff, articulators_list,
@@ -98,16 +70,16 @@ def build_arguments_checker(dataset, default_articulators):
     return control_arguments
 
 
-def build_extractor(dataset, initial_sampling_rate):
+def build_extractor(corpus, initial_sampling_rate):
     """Define and return a function to extract features from an utterance.
 
-    dataset               : name of the dataset from which to import features
+    corpus                : name of the corpus from which to import features
     initial_sampling_rate : initial sampling rate of the EMA data, in Hz (int)
     """
     # Load the output path and dependency data loading functions.
-    new_folder = CONSTANTS['%s_processed_folder' % dataset]
+    new_folder = CONSTANTS['%s_processed_folder' % corpus]
     load_ema, load_phone_labels, load_wav = import_from_string(
-        module='data.%s.raw._loaders' % dataset,
+        module='data.%s.raw._loaders' % corpus,
         elements=['load_ema', 'load_phone_labels', 'load_wav']
     )
 
@@ -161,76 +133,63 @@ def build_extractor(dataset, initial_sampling_rate):
             path = os.path.join(new_folder, name, utterance + '_%s.npy' % name)
             np.save(path, audio)
     # Adjust the functions's docstring and return it.
-    extract_data.__doc__ = extract_data.__doc__.format(dataset)
+    extract_data.__doc__ = extract_data.__doc__.format(corpus)
     return extract_data
 
 
 def build_features_extraction_functions(
-        dataset, initial_sampling_rate, default_articulators, docstring_details
+        corpus, initial_sampling_rate, default_articulators, docstring_details
     ):
-    """Define and return raw features extraction functions for a dataset.
+    """Define and return raw features extraction functions for a corpus.
 
-    dataset               : name of the dataset whose features to extract (str)
+    corpus                : name of the corpus whose features to extract (str)
     initial_sampling_rate : initial sampling rate of the EMA data, in Hz (int)
     default_articulators  : default articulators to keep (list of str)
     docstring_details     : docstring complement for the returned functions
     """
     # Long but explicit function name; pylint: disable=invalid-name
     # Define auxiliary functions through wrappers.
-    control_arguments = build_arguments_checker(dataset, default_articulators)
-    extract_data = build_extractor(dataset, initial_sampling_rate)
-    # Format the functions' arguments' docstring.
-    arguments_docstring = DOC_EXTRACT_ARGUMENTS.format(docstring_details)
-
-    # Define a function extracting features from a single utterance.
-    def extract_utterance_data(
-            utterance, audio_forms=None, n_coeff=12, articulators_list=None,
-            ema_sampling_rate=200, audio_frames_size=200
-        ):
-        """Extract acoustic and articulatory data of a given {0} utterance.
-        {1}
-        The produced data is stored to a subfolder of '{0}_processed_folder'
-        set in the json configuration file, named after the kind of features
-        produced (ema, lsf...). The utterance data is stored as a '.npy' file.
-        The file name is the utterance's name, extended with an indicator of
-        the kind of features it contains.
-
-    utterance         : name of the utterance to process (str){2}
-        """
-        nonlocal control_arguments, extract_data
-        # Check arguments, assign default values and build output folders.
-        check_type_validity(utterance, str, 'utterance')
-        audio_forms, articulators_list = control_arguments(
-            audio_forms, n_coeff, articulators_list,
-            ema_sampling_rate, audio_frames_size
-        )
-        # Conduct the actual data extractation.
-        extract_data(
-            utterance, audio_forms, n_coeff, articulators_list,
-            ema_sampling_rate, audio_frames_size
-        )
-    # Adjust the function's docstring.
-    extract_utterance_data.__doc__ = extract_utterance_data.__doc__.format(
-        dataset, DOC_EXTRACT_DETAILS, arguments_docstring
-    )
+    control_arguments = build_arguments_checker(corpus, default_articulators)
+    extract_data = build_extractor(corpus, initial_sampling_rate)
     # Import the get_utterances_list dependency function.
     get_utterances_list = import_from_string(
-        'data.%s.raw._loaders' % dataset, 'get_utterances_list'
+        'data.%s.raw._loaders' % corpus, 'get_utterances_list'
     )
-
     # Define a function extracting features from all utterances.
-    def extract_all_utterances(
+    def extract_utterances_data(
             audio_forms=None, n_coeff=12, articulators_list=None,
             ema_sampling_rate=initial_sampling_rate, audio_frames_size=200
         ):
         """Extract acoustic and articulatory data of each {0} utterance.
-        {1}
+
+        audio_forms       : optional list of representations of the audio data
+                            to produce, among {{'lsf', 'lpc', 'mfcc'}}
+                            (list of str, default None implying all of them)
+        n_coeff           : number of static coefficients to compute for each
+                            representation of the audio data (int, default 12)
+                            Note : dynamic features as well as static and
+                            dynamic energy will be included as well with
+                            each of the audio forms.
+        articulators_list : optional list of raw EMA data columns to keep
+                            (default None, implying twelve, detailed below)
+        ema_sampling_rate : sample rate of the EMA data to use, in Hz
+                            (int, default 200)
+        audio_frames_size : number of acoustic samples to include per frame
+                            (int, default 200)
+
+        Data extractation includes the following:
+          - optional resampling of the EMA data
+          - framing of audio data to align acoustic and articulatory records
+          - production of various acoustic features based on the audio data
+          - trimming of silences at the beginning and end of each utterance
+
         The produced data is stored to the '{0}_processed_folder' set in the
         json configuration file, where a subfolder is built for each kind of
         features (ema, mfcc, etc.). Each utterance is stored as a '.npy' file.
         The file names include the utterance's name, extended with an indicator
         of the kind of features it contains.
-        {2}
+
+        {1}
         """
         nonlocal control_arguments, extract_data, get_utterances_list
         # Check arguments, assign default values and build output folders.
@@ -238,7 +197,7 @@ def build_features_extraction_functions(
             audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_size
         )
-        # Iterate over all mngu0 utterances.
+        # Iterate over all corpus utterances.
         for utterance in get_utterances_list():
             extract_data(
                 utterance, audio_forms, n_coeff, articulators_list,
@@ -247,10 +206,15 @@ def build_features_extraction_functions(
             end_time = time.asctime().split(' ')[-2]
             print('%s : Done with utterance %s.' % (end_time, utterance))
             sys.stdout.write('\033[F')
+        # Record the list of articulators.
+        path = os.path.join(
+            CONSTANTS['%s_processed_folder' % corpus], 'ema', 'articulators'
+        )
+        with open(path, 'w', encoding='utf-8') as file:
+            file.write('\n'.join(articulators_list))
 
-    # Adjust the function's docstring.
-    extract_all_utterances.__doc__ = extract_all_utterances.__doc__.format(
-        dataset, DOC_EXTRACT_DETAILS, arguments_docstring
+    # Adjust the function's docstring and return it.
+    extract_utterances_data.__doc__ = (
+        extract_utterances_data.__doc__.format(corpus, docstring_details)
     )
-    # Return the defined features extraction functions.
-    return extract_utterance_data, extract_all_utterances
+    return extract_utterances_data
