@@ -35,4 +35,6 @@ extract_utterances_data = (
 
 compute_moments, normalize_files = build_normalization_functions('mocha')
 
-split_corpus = build_split_corpus('mocha', lowest_limit=9)
+split_corpus = build_split_corpus(
+    corpus='mocha', lowest_limit=9, same_speaker_data=True
+)

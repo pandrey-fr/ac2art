@@ -9,7 +9,7 @@ import numpy as np
 from data.utils import check_type_validity, CONSTANTS, import_from_string
 
 
-def build_triphones_indexer(limit, corpus):
+def build_triphones_indexer(limit, corpus, same_speaker_data):
     """Build an index of triphones appearing in each utterance of a corpus.
 
     limit : minimum number of utterances a triphone must appear in
@@ -19,9 +19,9 @@ def build_triphones_indexer(limit, corpus):
     in an utterance with the latter's name.
     """
     # Load the dependency functions associated with the corpus to index.
-    load_phone_labels, get_utterances_list = import_from_string(
+    load_phone_labels, get_utterances_list, speakers = import_from_string(
         module='data.%s.raw._loaders' % corpus,
-        elements=['load_phone_labels', 'get_utterances_list']
+        elements=['load_phone_labels', 'get_utterances_list', 'SPEAKERS']
     )
 
     # Define an auxiliary function to read an utterance's triphones.
@@ -33,10 +33,20 @@ def build_triphones_indexer(limit, corpus):
             for i in range(len(labels) - 2)
         }
 
-    # Gather the sets of utterances' triphones and the full list of these.
-    utterances = {
-        name: load_triphones(name) for name in get_utterances_list()
-    }
+    # Gather an index of triphones contained in each utterance.
+    # If utterances are identical for each speaker, read a unique
+    # list and index it with ranks instead of names.
+    if same_speaker_data:
+        utterances = {
+            i: load_triphones(name)
+            for i, name in enumerate(get_utterances_list(speakers[0]))
+        }
+    # Otherwise, gather the utterances from each and every speaker.
+    else:
+        utterances = {
+            name: load_triphones(name) for name in get_utterances_list()
+        }
+    # Gathe the full set of triphones.
     all_triphones = {
         triphone for utt_triphones in utterances.values()
         for triphone in utt_triphones
@@ -165,7 +175,9 @@ def store_filesets(filesets, corpus):
             file.write('\n'.join(fileset))
 
 
-def split_corpus_prototype(pct_train, limit, seed, corpus, lowest_limit):
+def split_corpus_prototype(
+        pct_train, limit, seed, corpus, lowest_limit, same_speaker_data
+    ):
     """Split the {0} corpus, ensuring good triphones coverage of the sets.
 
     pct_train : percentage of observations used as training data; the
@@ -194,7 +206,7 @@ def split_corpus_prototype(pct_train, limit, seed, corpus, lowest_limit):
 
     Note: due to the structure of the {0} utterances, using a `limit`
           parameter under {1} will generally fail.
-
+    {2}
     The produced filesets are stored to the filesets/ subfolder of the
     processed {0} folder, in txt files named 'train', 'validation'
     and 'test'.
@@ -210,24 +222,51 @@ def split_corpus_prototype(pct_train, limit, seed, corpus, lowest_limit):
         print('Warning: using such a low `limit` value is due to fail.')
     # Build the filesets.
     np.random.seed(seed)
-    indexer = build_triphones_indexer(limit, corpus)
+    indexer = build_triphones_indexer(limit, corpus, same_speaker_data)
     filesets = build_initial_split(indexer)
     filesets = adjust_filesets(filesets, pct_train, indexer)
+    # In case of identical speaker data, generalize the split to all speakers.
+    if same_speaker_data:
+        get_utterances_list, speakers = import_from_string(
+            module='data.%s.raw._loaders' % corpus,
+            elements=['get_utterances_list', 'SPEAKERS']
+        )
+        utterances = {
+            speaker: get_utterances_list(speaker) for speaker in speakers
+        }
+        filesets = [
+            [utterances[speaker][i] for speaker in speakers for i in fileset]
+            for fileset in filesets
+        ]
     # Write the produced filesets to txt files.
     filesets_dict = dict(zip(('train', 'validation', 'test'), filesets))
     store_filesets(filesets_dict, corpus)
 
 
-def build_split_corpus(corpus, lowest_limit):
-    """Build a corpus-specific `split_corpus` function."""
+def build_split_corpus(corpus, lowest_limit, same_speaker_data):
+    """Build a corpus-specific `split_corpus` function.
+
+    corpus            : name of the corpus (str)
+    lowest_limit      : default minimum number of utterances a triphone
+                        must appear in to be considered (positive int)
+    same_speaker_data : whether this corpus' speakers have the same list
+                        of utterances (bool)
+    """
+
     # Define the corpus-specific function.
     def split_corpus(pct_train=.7, limit=lowest_limit, seed=None):
         """Split the corpus."""
         return split_corpus_prototype(
-            pct_train, limit, seed, corpus, lowest_limit
+            pct_train, limit, seed, corpus, lowest_limit, same_speaker_data
         )
+
     # Adjust the function's docstring and return it.
-    split_corpus.__doc__ = (
-        split_corpus_prototype.__doc__.format(corpus, lowest_limit)
+    speakers_docstring = '' if not same_speaker_data else """
+    Note: as this corpus' speakers share an identical list of utterances,
+          the split is conducted along this list and generalized to all
+          speakers.
+    """
+    split_corpus.__doc__ = split_corpus_prototype.__doc__.format(
+        corpus, lowest_limit, speakers_docstring
     )
     return split_corpus

@@ -34,5 +34,7 @@ extract_utterances_data = (
 
 compute_moments, normalize_files = build_normalization_functions('mspka')
 
-split_corpus = build_split_corpus('mspka', lowest_limit=9)
+split_corpus = build_split_corpus(
+    corpus='mspka', lowest_limit=9, same_speaker_data=False
+)
 # pylint: enable=invalid-name
