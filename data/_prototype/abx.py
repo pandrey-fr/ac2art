@@ -26,7 +26,7 @@ def build_h5features_extractor(corpus):
     # Define features extraction functions.
 
     def _setup_features_loader(
-            audio_features, ema_features, inverter, dynamic_ema
+            audio_features, ema_features, inverter, dynamic_ema, articulators
         ):
         """Build a function to load features associated with an utterance.
 
@@ -64,7 +64,8 @@ def build_h5features_extractor(corpus):
         # Build the articulatory features loading function.
         if ema_features is not None:
             load_articulatory = functools.partial(
-                load_ema, norm_type=ema_features, use_dynamic=dynamic_ema
+                load_ema, norm_type=ema_features, use_dynamic=dynamic_ema,
+                articulators=articulators
             )
             if audio_features is None:
                 return load_articulatory
@@ -78,8 +79,8 @@ def build_h5features_extractor(corpus):
 
     def extract_h5_features(
             audio_features=None, ema_features=None, inverter=None,
-            output_name='%s_features' % corpus, dynamic_ema=True,
-            sampling_rate=200
+            output_name='%s_features' % corpus, articulators=None,
+            dynamic_ema=True, sampling_rate=200
         ):
         """Build an h5 file recording audio features associated with {0} data.
 
@@ -90,18 +91,23 @@ def build_h5features_extractor(corpus):
         inverter       : optional acoustic-articulatory inverter whose
                          predictions to use, based on the audio features
         output_name    : base name of the output file (default '{0}_features')
+        articulators   : optional list of articulators to keep among EMA data
         dynamic_ema    : whether to include dynamic articulatory features
                          (bool, default True)
         sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         nonlocal abx_folder, get_utterances, _setup_features_loader
+        # Build the abx folder, if necessary.
+        if not os.path.isdir(abx_folder):
+            os.makedirs(abx_folder)
         # Check that the destination file does not exist.
         output_file = os.path.join(abx_folder, '%s.features' % output_name)
         if os.path.isfile(output_file):
             raise FileExistsError("File '%s' already exists." % output_file)
         # Set up the features loading function.
         load_features = _setup_features_loader(
-            audio_features, ema_features, inverter, dynamic_ema
+            audio_features, ema_features, inverter, dynamic_ema, articulators
         )
         # Load the list of utterances and process them iteratively.
         utterances = get_utterances()
