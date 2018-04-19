@@ -35,25 +35,47 @@ def build_normalization_functions(dataset):
         )
 
     # Wrap the files normalization functon.
-    def normalize_files(file_type, norm_type, by_speaker=False):
-        """Normalize a set of files."""
-        nonlocal speakers
-        # Optionally normalize utterances using speaker-wise values.
-        if by_speaker:
+    def normalize_files(file_type, norm_type, scope='corpus'):
+        """Normalize pre-extracted {0} data of a given type.
+
+        Normalization includes de-meaning and division by either
+        four standard-deviations or the difference between the
+        extremum points (distribution spread). Those parameters
+        may either be file-wise, speaker-wise or corpus-wide.
+
+        file_type  : one of {{'ema', 'energy', 'lpc', 'lsf', 'mfcc'}}
+        norm_type  : normalization divisor to use ('spread' or 'stds')
+        scope      : scope of the normalization parameters to use
+                     ('corpus' for corpus-wide (default), 'speaker'
+                     for speaker-wise and 'file' for file-wise)
+
+        Normalized utterances are stored as .npy files in a
+        properly-named folder.
+        """
+        nonlocal compute_moments, get_utterances_list, main_folder, speakers
+        if scope == 'corpus':
+            _corpus_wide_normalize(
+                file_type, norm_type, None, main_folder,
+                get_utterances_list, compute_moments
+            )
+        elif scope == 'speaker':
             for speaker in speakers:
-                _normalize_files(
+                _corpus_wide_normalize(
                     file_type, norm_type, speaker, main_folder,
                     get_utterances_list, compute_moments
                 )
-            return None
-        # Otherwise, normalize all utterances using corpus-wide values.
-        return _normalize_files(
-            file_type, norm_type, None, main_folder,
-            get_utterances_list, compute_moments
-        )
+        elif scope == 'file':
+            _file_wise_normalize(
+                file_type, norm_type, main_folder, get_utterances_list
+            )
+        else:
+            raise ValueError(
+                "'scope' should be one of {'corpus', 'speaker', 'file'}."
+            )
+
     # Adjust the functions' docstrings and return them.
     compute_moments.__doc__ = _compute_moments.__doc__.format(dataset)
-    normalize_files.__doc__ = _normalize_files.__doc__.format(dataset)
+    normalize_files.__doc__ = normalize_files.__doc__.format(dataset)
     return compute_moments, normalize_files
 
 
@@ -110,25 +132,32 @@ def _compute_moments(
     return moments
 
 
-def _normalize_files(
+def _conduct_normalization(
+        file_type, norm_name, normalize, speaker,
+        main_folder, get_utterances_list
+    ):
+    """Conduct normalization of utterances using a pre-built function."""
+    # Establish output folder to use. Build it if needed.
+    output_folder = os.path.join(main_folder, file_type + '_norm_' + norm_name)
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+    # Establish which files to work on.
+    input_folder = os.path.join(main_folder, file_type)
+    files = [
+        name + '_%s.npy' % file_type for name in get_utterances_list(speaker)
+    ]
+    # Iteratively normalize the files.
+    for filename in files:
+        data = np.load(os.path.join(input_folder, filename))
+        data = normalize(data)
+        np.save(os.path.join(output_folder, filename), data)
+
+
+def _corpus_wide_normalize(
         file_type, norm_type, speaker, main_folder,
         get_utterances_list, compute_moments
     ):
-    """Normalize pre-extracted {0} data of a given type.
-
-    Normalization includes de-meaning (based on dataset-wide mean)
-    and division by a dataset-wide computed value, which may either
-    be four standard-deviations or the difference between the
-    extremum points (distribution spread).
-
-    Normalized utterances are stored as .npy files in a properly-named folder.
-
-    file_type  : one of {{'ema', 'energy', 'lpc', 'lsf', 'mfcc'}}
-    norm_type  : normalization divisor to use ('spread' or 'stds')
-    by_speaker : whether to use speaker-wise normalization parameters
-                 instead of corpus-wide ones (bool, default False)
-    """
-    input_folder = os.path.join(main_folder, file_type)
+    """Normalize a corpus using corpus-wide or speaker-wise parameters."""
     # Gather files' moments. Compute them if needed.
     path = _get_normfile_path(main_folder, file_type, speaker)
     if os.path.isfile(path):
@@ -139,16 +168,29 @@ def _normalize_files(
         moments = compute_moments(file_type, by_speaker=True)[speaker]
     means = moments['global_means']
     norm = moments['global_%s' % norm_type] * (4 if norm_type == 'stds' else 1)
-    # Build the output directory, if needed.
-    norm_type += ('' if speaker is None else '_byspeaker')
-    output_folder = os.path.join(main_folder, file_type + '_norm_' + norm_type)
-    if not os.path.isdir(output_folder):
-        os.makedirs(output_folder)
     # Iteratively normalize the utterances.
-    files = [
-        name + '_%s.npy' % file_type for name in get_utterances_list(speaker)
-    ]
-    for filename in files:
-        data = np.load(os.path.join(input_folder, filename))
-        data = (data - means) / norm
-        np.save(os.path.join(output_folder, filename), data)
+    normalize = lambda utterance: (utterance - means) / norm
+    norm_name = norm_type + ('' if speaker is None else '_byspeaker')
+    _conduct_normalization(
+        file_type, norm_name, normalize, speaker,
+        main_folder, get_utterances_list
+    )
+
+
+def _file_wise_normalize(
+        file_type, norm_type, main_folder, get_utterances_list
+    ):
+    """Normalize a corpus using file-specific parameters."""
+    # Define a file-wise normalization function.
+    if norm_type == 'stds':
+        get_norm = lambda utt: 4 * utt.std(axis=0)
+    elif norm_type == 'spread':
+        get_norm = lambda utt: (utt.max(axis=0) - utt.min(axis=0))
+    else:
+        raise KeyError("'norm_type' should be one of {'stds', 'spread'}.")
+    normalize = lambda utt: (utt - utt.mean(axis=0)) / get_norm(utt)
+    # Conduct normalization using the previously defined function.
+    norm_name = norm_type + '_byfile'
+    _conduct_normalization(
+        file_type, norm_name, normalize, None, main_folder, get_utterances_list
+    )
