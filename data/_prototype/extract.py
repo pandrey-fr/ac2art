@@ -158,7 +158,7 @@ def build_features_extraction_functions(
     # Define a function extracting features from all utterances.
     def extract_utterances_data(
             audio_forms=None, n_coeff=12, articulators_list=None,
-            ema_sampling_rate=initial_sampling_rate, audio_frames_size=200
+            ema_sampling_rate=200, audio_frames_size=200
         ):
         """Extract acoustic and articulatory data of each {0} utterance.
 
