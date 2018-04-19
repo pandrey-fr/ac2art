@@ -229,9 +229,15 @@ def build_abxpy_callers(corpus):
 
     def load_abx_scores(filename):
         """Load, aggregate and return some pre-computed abx scores."""
-        nonlocal abx_folder
+        nonlocal abx_folder, corpus
+        # Load the ABX scores.
         path = os.path.join(abx_folder, filename + '_abx.csv')
         data = pd.read_csv(path, sep='\t')
+        # Replace corpus-specific symbols with IPA ones.
+        symbols = pd.read_csv(CONSTANTS['symbols_file'], index_col=corpus)
+        for key in ('phone_1', 'phone_2'):
+            data[key] = data[key].apply(lambda x: symbols.loc[x, 'ipa'])
+        # Collapse the scores (i.e. forget about triphone contexts).
         data['score'] *= data['n']
         data['phones'] = data.apply(
             lambda row: '_'.join(sorted([row['phone_1'], row['phone_2']])),
@@ -239,6 +245,7 @@ def build_abxpy_callers(corpus):
         )
         scores = data.groupby('phones')[['score', 'n']].sum()
         scores['score'] /= scores['n']
+        # Return the properly-formatted scores.
         return scores
 
     # Adjust functions' docstrings and return them.
