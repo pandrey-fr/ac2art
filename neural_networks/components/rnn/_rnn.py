@@ -25,7 +25,7 @@ class AbstractRNN(metaclass=ABCMeta):
         ):
         """Instantiate the recurrent neural network.
 
-        input_data   : input data of the network (tensorflow.Tensor,
+        input_data   : input data of the network (tensorflow.Tensor),
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
@@ -159,7 +159,7 @@ class RecurrentNeuralNetwork(AbstractRNN):
         ):
         """Instantiate the recurrent neural network.
 
-        input_data   : input data of the network (tensorflow.Tensor,
+        input_data   : input data of the network (tensorflow.Tensor),
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
@@ -230,7 +230,7 @@ class BidirectionalRNN(AbstractRNN):
         ):
         """Instantiate the bidirectional recurrent neural network.
 
-        input_data   : input data of the network (tensorflow.Tensor,
+        input_data   : input data of the network (tensorflow.Tensor),
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
