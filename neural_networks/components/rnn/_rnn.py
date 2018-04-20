@@ -137,7 +137,7 @@ def build_cells_wrapper(cell_type, layers_shape, activation, keep_prob):
     cells = [
         cell_type(n_units, activation=activation) for n_units in layers_shape
     ]
-    if keep_prob is None:
+    if keep_prob is not None:
         cells = [
             tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
             for cell in cells
