@@ -128,3 +128,61 @@ def lowpass_filter(signal, cutoff, sample_rate, order=5):
         np.expand_dims(scipy.signal.filtfilt(filt_b, filt_a, channel), 1)
         for channel in signal.T
     ], axis=1)
+
+
+def sequences_to_batch(sequences, length):
+    """Batch a set of data sequences into a three-dimensional array.
+
+    sequences : list of array of two-dimensional numpy arrays sharing
+                the same shape on their last dimension
+    length    : size of the batched array's second dimension
+
+    Return a numpy.array of shape [n_sequences, length, sequences_width].
+    """
+    # Check sequences argument validity.
+    check_type_validity(sequences, (list, numpy.ndarray), 'sequences')
+    if isinstance(sequences, numpy.ndarray):
+        if len(sequences.shape) == 2:
+            sequences = [sequences]
+        elif len(sequences.shape) != 1:
+            raise TypeError(
+                "'sequences' must be a list or a flat numpy array."
+            )
+    width = sequences[0][0].shape[1]
+    valid = all(
+        isinstance(sequence, numpy.ndarray) and len(sequence.shape) == 2
+        and sequence.shape[1] == width
+        for sequence in sequences
+    )
+    if not valid:
+        raise TypeError(
+            "All sequences must be 2-D numpy arrays of same number of columns."
+        )
+    # Check length argument validity.
+    check_positive_int(length, 'length')
+    # Gather the length of each and every sequence.
+    batch_sizes = np.array([
+        min(len(sequence), length) for sequence in sequences
+    ])
+    # Zero-pad the sequences and concatenate them.
+    batched = np.array([
+        np.concatenate([
+            seq[:length], np.zeros(length - seq_length, seq.shape[1])
+        ])
+        for length, seq_length in zip(sequences, batch_sizes)
+    ])
+    # Return the batched sequences and the true sequence lengths.
+    return batched, batch_sizes
+
+
+def batch_to_sequences(batch, batch_sizes):
+    """Split an array of batched sequences into a list of sequences.
+
+    batch       : three-dimensional numpy array of shape
+                  [n_sequences, max_length, sequences_width]
+    batch_sizes : list of true lengths of the batched sequences
+                  (i.e. notwithstanding zero padding)
+    """
+    return np.array([
+        sequence[:batch_sizes[i]] for i, sequence in enumerate(batch)
+    ])
