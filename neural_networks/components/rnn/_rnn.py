@@ -20,8 +20,8 @@ class AbstractRNN(metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(
-            self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='rnn', keep_prob=None
+            self, input_data, layers_shape, batch_sizes=None,
+            cell_type='lstm', activation='tanh', name='rnn', keep_prob=None
         ):
         """Instantiate the recurrent neural network.
 
@@ -29,15 +29,17 @@ class AbstractRNN(metaclass=ABCMeta):
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
+        batch_sizes  : true lengths of the batched sequences
+                       (for input tensors of rank 3 only)
         cell_type    : type of recurrent cells to use (short name (str)
                        or tensorflow.nn.rnn_cell.RNNCell subclass,
                        default 'lstm', i.e. LSTMCell)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
-        name         : name of the stack (using the same name twice will
-                       cause tensorflow to raise an exception)
-        keep_prob    : optional Tensor recording a keep probability to use
-                       as a dropout parameter
+        name         : name of the stack (using the same name twice
+                       will cause tensorflow to raise an exception)
+        keep_prob    : optional Tensor recording a keep probability
+                       used as a dropout parameter
 
         This needs overriding by subclasses to actually build the network
         out of the pre-validated arguments. The `weights` argument should
@@ -49,14 +51,17 @@ class AbstractRNN(metaclass=ABCMeta):
         self.name = name
         # Check input data valitidy.
         check_type_validity(input_data, tf.Tensor, 'input_data')
-        if len(input_data.shape) not in [2, 3]:
-            raise TypeError("Invalid 'input_data' rank: should be 2 or 3.")
         if len(input_data.shape) == 2:
             self.input_data = tf.expand_dims(input_data, 0)
-            self._single_batch = True
-        else:
+            self.batch_sizes = None
+        elif len(input_data.shape) == 3:
             self.input_data = input_data
-            self._single_batch = False
+            if batch_sizes is None:
+                raise ValueError(
+                    "With rank 3 'input_data', 'batch_sizes' is mandatory.")
+            self.batch_sizes = sequence_length
+        else:
+            raise TypeError("Invalid 'input_data' rank: should be 2 or 3.")
         # Check layers shape validity.
         check_type_validity(layers_shape, (tuple, int), 'layers_shape')
         if isinstance(layers_shape, int):
@@ -149,8 +154,8 @@ class RecurrentNeuralNetwork(AbstractRNN):
     """Class wrapping Recurrent Neural Network stacks in tensorflow."""
 
     def __init__(
-            self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='rnn', keep_prob=None
+            self, input_data, layers_shape, batch_sizes=None,
+            cell_type='lstm', activation='tanh', name='rnn', keep_prob=None
         ):
         """Instantiate the recurrent neural network.
 
@@ -158,17 +163,22 @@ class RecurrentNeuralNetwork(AbstractRNN):
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
         layers_shape : number of units per layer (int or tuple of int)
+        batch_sizes  : true lengths of the batched sequences
+                       (for input tensors of rank 3 only)
         cell_type    : type of recurrent cells to use (short name (str)
                        or tensorflow.nn.rnn_cell.RNNCell subclass,
                        default 'lstm', i.e. LSTMCell)
-        name         : name of the stack (using the same name twice will
-                       cause tensorflow to raise an exception)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
+        name         : name of the stack (using the same name twice will
+                       cause tensorflow to raise an exception)
+        keep_prob    : optional Tensor recording a keep probability
+                       used as a dropout parameter
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_data, layers_shape, cell_type, activation, name, keep_prob
+            input_data, layers_shape, batch_sizes,
+            cell_type, activation, name, keep_prob
         )
         # Build a wrapper for the network's cells.
         self.cells = build_cells_wrapper(
@@ -176,7 +186,8 @@ class RecurrentNeuralNetwork(AbstractRNN):
         )
         # Build the recurrent unit.
         output, state = tf.nn.dynamic_rnn(
-            self.cells, self.input_data, scope=self.name, dtype=tf.float32
+            self.cells, self.input_data, self.batch_sizes,
+            scope=self.name, dtype=tf.float32
         )
         self.output = output[0] if self._single_batch else output
         self.state = state[0] if self._single_batch else state
@@ -213,31 +224,35 @@ class BidirectionalRNN(AbstractRNN):
     # Attributes serve clarity; pylint: disable=too-many-instance-attributes
 
     def __init__(
-            self, input_data, layers_shape, cell_type='lstm',
-            activation='tanh', name='bi_rnn', aggregate='concatenate',
-            keep_prob=None
+            self, input_data, layers_shape, batch_sizes=None,
+            cell_type='lstm', activation='tanh', aggregate='concatenate',
+            name='bi_rnn', keep_prob=None
         ):
         """Instantiate the bidirectional recurrent neural network.
 
         input_data   : input data of the network (tensorflow.Tensor,
                        either of shape [n_batches, max_time, input_size]
                        or [len_sequence, input_size]
-        layers_shape : number of units per layer (int or tuple of int),
-                       common to both forward and backward units
+        layers_shape : number of units per layer (int or tuple of int)
+        batch_sizes  : true lengths of the batched sequences
+                       (for input tensors of rank 3 only)
         cell_type    : type of recurrent cells to use (short name (str)
                        or tensorflow.nn.rnn_cell.RNNCell subclass,
                        default 'lstm', i.e. LSTMCell)
         activation   : activation function of the cell units (function
                        or function name, default 'tanh')
-        name         : name of the stack (using the same name twice will
-                       cause tensorflow to raise an exception)
         aggregate    : aggregation method for the network's outputs
                        (one of {'concatenate', 'mean', 'min', 'max'},
                        default 'concatenate')
+        name         : name of the stack (using the same name twice will
+                       cause tensorflow to raise an exception)
+        keep_prob    : optional Tensor recording a keep probability
+                       used as a dropout parameter
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
-            input_data, layers_shape, cell_type, activation, name, keep_prob
+            input_data, layers_shape, batch_sizes,
+            cell_type, activation, name, keep_prob
         )
         # Check aggregate argument validity.
         check_type_validity(aggregate, str, 'aggregate')
@@ -254,7 +269,7 @@ class BidirectionalRNN(AbstractRNN):
         # Build the bidirectional recurrent unit.
         outputs, states = tf.nn.bidirectional_dynamic_rnn(
             self.forward_cells, self.backward_cells, self.input_data,
-            scope=self.name, dtype=tf.float32
+            self.batch_sizes, scope=self.name, dtype=tf.float32
         )
         # Unpack the network's outputs and aggregate them.
         fw_output = outputs[0][0] if self._single_batch else outputs[0]
