@@ -9,10 +9,8 @@ import time
 import numpy as np
 import resampy
 
-from data.utils import (
-    check_positive_int, check_type_validity, CONSTANTS,
-    interpolate_missing_values, import_from_string
-)
+from data.utils import CONSTANTS, interpolate_missing_values
+from utils import check_positive_int, check_type_validity, import_from_string
 
 
 def build_arguments_checker(corpus, default_articulators):

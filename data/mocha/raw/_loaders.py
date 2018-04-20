@@ -10,7 +10,8 @@ from sphfile import SPHFile
 from data.commons.enhance import lowpass_filter
 from data.commons.loaders import EstTrack, Wav
 from data._prototype.raw import build_utterances_getter
-from data.utils import check_type_validity, CONSTANTS
+from data.utils import CONSTANTS
+from utils import check_type_validity
 
 
 RAW_FOLDER = CONSTANTS['mocha_raw_folder']

@@ -6,7 +6,8 @@ import os
 
 import numpy as np
 
-from data.utils import CONSTANTS, import_from_string
+from data.utils import CONSTANTS
+from utils import import_from_string
 
 
 def build_normalization_functions(dataset):

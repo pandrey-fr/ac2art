@@ -6,6 +6,5 @@ from . import components
 from . import core
 from . import models
 from . import tf_utils
-from . import utils
 
 from .core import load_dumped_model

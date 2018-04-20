@@ -10,9 +10,8 @@ at https://github.com/bootphon/ABXpy.
 import os
 import time
 
-from data.utils import (
-    check_batch_type, check_positive_int, check_type_validity, CONSTANTS
-)
+from data.utils import CONSTANTS
+from utils import check_batch_type, check_positive_int, check_type_validity
 
 
 ABXPY_FOLDER = CONSTANTS['abxpy_folder']

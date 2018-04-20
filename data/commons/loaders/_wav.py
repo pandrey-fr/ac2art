@@ -10,7 +10,7 @@ import scipy.signal
 import librosa
 
 from data.commons.enhance import add_dynamic_features
-from data.utils import check_type_validity
+from utils import check_type_validity
 
 
 class Wav:

@@ -9,7 +9,7 @@ from neural_networks.components.mlpg import (
     generate_trajectory_from_gaussian_mixture
 )
 from neural_networks.models import MixtureDensityNetwork
-from neural_networks.utils import onetimemethod
+from utils import onetimemethod
 
 
 class TrajectoryMDN(MixtureDensityNetwork):

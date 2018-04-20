@@ -8,7 +8,8 @@ import numpy as np
 
 from data.commons.enhance import add_dynamic_features, build_context_windows
 from data._prototype.normalize import _get_normfile_path
-from data.utils import CONSTANTS, import_from_string
+from data.utils import CONSTANTS
+from utils import import_from_string
 
 
 def load_articulators_list(corpus):

@@ -6,7 +6,8 @@ import os
 
 import numpy as np
 
-from data.utils import check_type_validity, CONSTANTS, import_from_string
+from data.utils import CONSTANTS
+from utils import check_type_validity, import_from_string
 
 
 def build_triphones_indexer(limit, corpus, same_speaker_data):

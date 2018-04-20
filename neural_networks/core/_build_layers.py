@@ -11,7 +11,7 @@ from neural_networks.components.layers import DenseLayer, NeuralLayer
 from neural_networks.components.rnn import (
     AbstractRNN, RecurrentNeuralNetwork, BidirectionalRNN
 )
-from neural_networks.utils import check_type_validity, get_object
+from utils import check_type_validity, get_object
 
 
 LAYER_CLASSES = {

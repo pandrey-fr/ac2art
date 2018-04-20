@@ -5,7 +5,7 @@
 import tensorflow as tf
 
 from neural_networks.components.gaussian import gaussian_density
-from neural_networks.utils import check_positive_int
+from utils import check_positive_int
 
 
 def generate_univariate_trajectory(means, stds, weights):

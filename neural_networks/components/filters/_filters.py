@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from neural_networks.components.filters import SignalFilter
 from neural_networks.tf_utils import sinc
-from neural_networks.utils import check_positive_int, onetimemethod
+from utils import check_positive_int, onetimemethod
 
 
 class LowpassFilter(SignalFilter):

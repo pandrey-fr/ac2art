@@ -7,7 +7,7 @@ import os
 
 import pandas as pd
 
-from data.utils import check_type_validity
+from utils import check_type_validity
 
 
 class AbstractDataLoader(metaclass=ABCMeta):

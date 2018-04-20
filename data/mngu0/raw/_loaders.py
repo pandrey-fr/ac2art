@@ -6,7 +6,8 @@ import os
 
 
 from data.commons.loaders import EstTrack, Wav
-from data.utils import check_type_validity, CONSTANTS
+from data.utils import CONSTANTS
+from utils import check_type_validity
 
 
 RAW_FOLDER = CONSTANTS['mngu0_raw_folder']

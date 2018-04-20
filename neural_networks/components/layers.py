@@ -7,10 +7,10 @@ import inspect
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.utils import check_type_validity
 from neural_networks.tf_utils import (
     conv2d, setup_activation_function, get_activation_function_name
 )
+from utils import check_type_validity
 
 
 class NeuralLayer:

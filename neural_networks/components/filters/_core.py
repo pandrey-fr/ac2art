@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.utils import check_type_validity, onetimemethod
+from utils import check_type_validity, onetimemethod
 
 
 def filter_1d_signal(signal, filt):

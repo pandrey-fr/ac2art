@@ -10,7 +10,7 @@ from neural_networks.core import (
     build_rmse_readouts, refine_signal, validate_layer_config
 )
 from neural_networks.models import MultilayerPerceptron
-from neural_networks.utils import check_type_validity, onetimemethod
+from utils import check_type_validity, onetimemethod
 
 
 class AutoEncoder(MultilayerPerceptron):

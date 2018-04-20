@@ -11,7 +11,7 @@ from neural_networks.tf_utils import (
     get_activation_function_name, get_rnn_cell_type_name,
     setup_activation_function, setup_rnn_cell_type
 )
-from neural_networks.utils import check_positive_int, check_type_validity
+from utils import check_positive_int, check_type_validity
 
 
 class AbstractRNN(metaclass=ABCMeta):

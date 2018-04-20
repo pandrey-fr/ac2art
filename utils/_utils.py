@@ -1,14 +1,48 @@
 # coding: utf-8
 
-"""Set of utility functions.
+"""Set of broadly used utilitarian classes.
 
 Note: some functions implemented here are copied or adapted
       from the YAPTools package, written by the same author
       (https://github.com/pandrey-fr/yaptools/)
 """
 
+import re
 import inspect
 import functools
+
+
+def alphanum_sort(string_list):
+    """Sort a list of strings using the alphanum algorithm.
+    Dave Koelle's Alphanum algorithm sorts names containing integer
+    in a more human-intuitive way than the usual Ascii-based way.
+    E.g. sorting ['2', '1', '10'] results in ['1', '2', '10'],
+         whereas built-in sorted() results in ['1', '10', '2'].
+    """
+    check_type_validity(string_list, list, 'string_list')
+    if not all(isinstance(string, str) for string in string_list):
+        raise TypeError('The provided list contains non-string elements.')
+    return sorted(string_list, key=_alphanum_key)
+
+
+def _alphanum_key(string):
+    """Parse a string into string and integer components."""
+    parity = int(string[0] in '0123456789')
+    return [
+        int(x) if i % 2 != parity else x
+        for i, x in enumerate(re.split('([0-9]+)', string)[parity:])
+    ]
+
+def check_batch_type(valid_type, **kwargs):
+    """Check that a batch of keyword arguments are of a given type."""
+    invalid = [
+        name for name, arg in kwargs.items() if not isinstance(arg, valid_type)
+    ]
+    if invalid:
+        raise TypeError(
+            "Invalid argument%s: '%s'. Should be of type %s."
+            % ('s' * (len(invalid) > 1), ', '.join(invalid), valid_type)
+        )
 
 
 def check_positive_int(instance, var_name):

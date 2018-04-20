@@ -11,7 +11,7 @@ import numpy as np
 from neural_networks.components.layers import DenseLayer
 from neural_networks.core import DeepNeuralNetwork, build_layers_stack
 from neural_networks.tf_utils import minimize_safely
-from neural_networks.utils import check_type_validity, onetimemethod
+from utils import check_type_validity, onetimemethod
 
 
 class Discriminator:

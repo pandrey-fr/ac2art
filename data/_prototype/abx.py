@@ -10,9 +10,8 @@ import pandas as pd
 import numpy as np
 
 from data.commons.abxpy import abxpy_pipeline, abxpy_task
-from data.utils import (
-    check_positive_int, check_type_validity, CONSTANTS, import_from_string
-)
+from data.utils import CONSTANTS
+from utils import check_positive_int, check_type_validity, import_from_string
 
 
 def build_h5features_extractor(corpus):

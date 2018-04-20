@@ -8,7 +8,8 @@ import pandas as pd
 
 from data.commons.loaders import Wav
 from data._prototype.raw import build_utterances_getter
-from data.utils import alphanum_sort, check_type_validity, CONSTANTS
+from data.utils import CONSTANTS
+from utils import alphanum_sort, check_type_validity
 
 
 RAW_FOLDER = CONSTANTS['mspka_raw_folder']

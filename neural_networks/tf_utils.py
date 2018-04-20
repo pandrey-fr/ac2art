@@ -7,9 +7,7 @@ import inspect
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.utils import (
-    check_type_validity, get_object, get_object_name
-)
+from utils import check_type_validity, get_object, get_object_name
 
 
 def binary_step(tensor):

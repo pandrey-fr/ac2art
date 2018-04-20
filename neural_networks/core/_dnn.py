@@ -15,7 +15,7 @@ from neural_networks.core import (
 from neural_networks.components.filters import SignalFilter
 from neural_networks.components.layers import NeuralLayer
 from neural_networks.components.rnn import AbstractRNN
-from neural_networks.utils import (
+from utils import (
     check_positive_int, check_type_validity, instantiate, onetimemethod
 )
 
