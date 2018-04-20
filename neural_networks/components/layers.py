@@ -135,14 +135,15 @@ class DenseLayer(NeuralLayer):
     """Dense layer of fully-connected units."""
 
     def __init__(
-            self, input_data, n_units, activation, bias=True,
+            self, input_data, n_units, activation='relu', bias=True,
             name='DenseLayer', keep_prob=None
         ):
         """Initialize the fully-connected neural layer.
 
         input_data : tensorflow variable or placeholder to use as input
-        n_units    : number of units on the layer
+        n_units    : number of units of the layer
         activation : activation function or activation function name
+                     (default 'relu', i.e. `tensorflow.nn.relu`)
         bias       : whether to add a bias constant to the transformed data
                      passed to the activation function (bool, default True)
         name       : optional name to give to the layer's inner operations
@@ -150,7 +151,16 @@ class DenseLayer(NeuralLayer):
                      as a dropout parameter
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
+        # Check the input tensor's shape. If needed, flatten it.
+        if len(input_data.shape) == 3:
+            batch_size = input_data.shape[1]
+            input_data = tf.reshape(input_data, (-1, input_data.shape[2]))
+        elif len(input_data.shape) == 2:
+            batch_size = None
+        else:
+            raise TypeError("'input_data' tensor should be of rank 1 or 2.")
         check_type_validity(keep_prob, (tf.Tensor, type(None)), 'keep_prob')
+        # Optionally set up a dropout function applied on top of the layer.
         if keep_prob is None:
             dropout = None
         else:
@@ -158,11 +168,17 @@ class DenseLayer(NeuralLayer):
                 """Dropout filter pooling the output of a neural layer."""
                 nonlocal keep_prob
                 return tf.nn.dropout(input_data, keep_prob=keep_prob)
+        # Build the layer.
         super().__init__(
             input_data, activation, operation=tf.matmul,
             weight_dim=[input_data.shape[1].value, n_units],
             bias=bias, name=name, pooling=dropout
         )
+        # If needed, reshape the output as a batch of inputs.
+        if batch_size is not None:
+            self.output = tf.reshape(
+                self.output, (-1, batch_size, self.output.shape[1])
+            )
 
 
 class ConvolutionalLayer(NeuralLayer):
