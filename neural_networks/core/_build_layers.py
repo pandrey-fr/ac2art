@@ -21,7 +21,8 @@ LAYER_CLASSES = {
 
 
 def build_layers_stack(
-        input_tensor, layers_config, keep_prob=None, check_config=True
+        input_tensor, layers_config, keep_prob=None,
+        batch_sizes=None, check_config=True
     ):
     """Build a stack of neural layers, rnn substacks and signal filters.
 
@@ -32,6 +33,8 @@ def build_layers_stack(
                     for signal filters) and an optional dict of keyword
                     arguments used to instantiate the layer
     keep_prob     : optional tensor specifying dropout keep probability
+    batch_sizes   : optional tensor specifying true sequences lengths
+                    when using batches of data sequences
     check_config  : whether to check `layers_config` to be valid
                     (bool, default True)
     """
@@ -50,15 +53,16 @@ def build_layers_stack(
         layer_name = kwargs.pop(
             'name', name + '_%s' % layers_counter.setdefault(name, 0)
         )
-        # Handle dropout and naming, if relevant. Avoid RNN scope issues.
+        # Handle dropout and naming, if relevant.
         if issubclass(layer_class, (DenseLayer, AbstractRNN)):
             kwargs = kwargs.copy()
-            kwargs['name'] = (
-                layer_name if issubclass(layer_class, DenseLayer)
-                else layer_name + '_%s' % int(time.time())
-            )
             kwargs.setdefault('keep_prob', keep_prob)
-        # instantiate the layer.
+            kwargs['name'] = layer_name
+            # Avoid RNN scope issues. Feed batch sizes, if any.
+            if issubclass(layer_class, AbstractRNN):
+                kwargs['name'] += '_%s' % int(time.time())
+                kwargs['batch_sizes'] = batch_sizes
+        # Instantiate the layer.
         layer = layer_class(input_tensor, n_units, **kwargs)
         # Add the layer to the stack and use its output as next input.
         layers_stack[layer_name] = layer
