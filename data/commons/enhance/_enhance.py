@@ -2,8 +2,11 @@
 
 """Set of functions to enhance acoustic and articulatory data."""
 
+
 import numpy as np
 import scipy.signal
+
+from utils import check_positive_int, check_type_validity
 
 
 def add_dynamic_features(static_features, window=5):
@@ -140,17 +143,17 @@ def sequences_to_batch(sequences, length):
     Return a numpy.array of shape [n_sequences, length, sequences_width].
     """
     # Check sequences argument validity.
-    check_type_validity(sequences, (list, numpy.ndarray), 'sequences')
-    if isinstance(sequences, numpy.ndarray):
+    check_type_validity(sequences, (list, np.ndarray), 'sequences')
+    if isinstance(sequences, np.ndarray):
         if len(sequences.shape) == 2:
             sequences = [sequences]
         elif len(sequences.shape) != 1:
             raise TypeError(
                 "'sequences' must be a list or a flat numpy array."
             )
-    width = sequences[0][0].shape[1]
+    width = sequences[0].shape[1]
     valid = all(
-        isinstance(sequence, numpy.ndarray) and len(sequence.shape) == 2
+        isinstance(sequence, np.ndarray) and len(sequence.shape) == 2
         and sequence.shape[1] == width
         for sequence in sequences
     )
@@ -167,9 +170,9 @@ def sequences_to_batch(sequences, length):
     # Zero-pad the sequences and concatenate them.
     batched = np.array([
         np.concatenate([
-            seq[:length], np.zeros(length - seq_length, seq.shape[1])
+            seq[:length], np.zeros((length - seq_length, seq.shape[1]))
         ])
-        for length, seq_length in zip(sequences, batch_sizes)
+        for seq, seq_length in zip(sequences, batch_sizes)
     ])
     # Return the batched sequences and the true sequence lengths.
     return batched, batch_sizes
