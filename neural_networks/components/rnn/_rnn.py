@@ -54,12 +54,14 @@ class AbstractRNN(metaclass=ABCMeta):
         if len(input_data.shape) == 2:
             self.input_data = tf.expand_dims(input_data, 0)
             self.batch_sizes = None
+            self._batched = False
         elif len(input_data.shape) == 3:
             self.input_data = input_data
             if batch_sizes is None:
                 raise ValueError(
                     "With rank 3 'input_data', 'batch_sizes' is mandatory.")
             self.batch_sizes = batch_sizes
+            self._batched = True
         else:
             raise TypeError("Invalid 'input_data' rank: should be 2 or 3.")
         # Check layers shape validity.
@@ -189,8 +191,8 @@ class RecurrentNeuralNetwork(AbstractRNN):
             self.cells, self.input_data, self.batch_sizes,
             scope=self.name, dtype=tf.float32
         )
-        self.output = output if self.batch_sizes else output[0]
-        self.state = state if self.batch_sizes else state[0]
+        self.output = output if self._batched else output[0]
+        self.state = state if self._batched else state[0]
         # Assign the cells' weights to the weights attribute.
         weights = self.cells.weights
         self.weights = [
@@ -272,8 +274,8 @@ class BidirectionalRNN(AbstractRNN):
             self.batch_sizes, scope=self.name, dtype=tf.float32
         )
         # Unpack the network's outputs and aggregate them.
-        fw_output = outputs[0] if self.batch_sizes else outputs[0][0]
-        bw_output = outputs[1] if self.batch_sizes else outputs[1][0]
+        fw_output = outputs[0] if self._batched else outputs[0][0]
+        bw_output = outputs[1] if self._batched else outputs[1][0]
         if self.aggregate == 'concatenate':
             self.output = tf.concat([fw_output, bw_output], axis=-1)
         elif self.aggregate == 'mean':
@@ -284,7 +286,7 @@ class BidirectionalRNN(AbstractRNN):
             self.output = tf.maximum(fw_output, bw_output)
         # Unpack the network's state outputs.
         self.states = (
-            states if self.batch_sizes else (states[0][0], states[1][0])
+            states if self._batched else (states[0][0], states[1][0])
         )
         # Wrap the forward and backward cells' weights into attributes.
         def get_cells_weights(cells):
