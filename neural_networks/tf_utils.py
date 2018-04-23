@@ -62,6 +62,7 @@ def get_simple_difference(tensor, lag):
     lag    : lag to use, so that the difference at time t is
              between values at times t + lag and t - lag
     """
+    tf.assert_rank(tensor, 2)
     padding = tf.ones((lag, tensor.shape[1].value))
     past = tf.concat([padding * tensor[0], tensor[:-lag]], axis=0)
     future = tf.concat([tensor[lag:], padding * tensor[-1]], axis=0)
@@ -151,6 +152,49 @@ def reduce_finite_mean(tensor, axis=None):
     sums = tf.reduce_sum(filled, axis=axis)
     # Retun the mean(s) across the reduction axis.
     return sums / tf.cast(n_obs, tf.float32)
+
+
+def run_along_first_dim(function, tensor, *args, **kwargs):
+    """Apply a function along the first dimension of a tensor.
+
+    This is useful when working on a variable-size tensor batching
+    tensors which need transforming independently through the same
+    operation.
+
+    function : function expecting a tensor of rank n and returning
+               a tensor of rank m
+    tensor   : a tensor of rank n + 1 along whose first dimension
+               the `function` is to be applied
+
+    Return a tensor of rank m + 1, composed of the results of
+    applying the function along the first dimension of the
+    input tensor.
+
+    Any additional arguments and keyword arguments expected by
+    `function` may also be passed.
+    """
+    # Define functions to transform sub-tensors iteratively.
+    def run_function(iteration):
+        """Run the function on a given sub-tensor."""
+        nonlocal tensor, function, args, kwargs
+        return tf.expand_dims(function(tensor[iteration], *args, **kwargs), 0)
+
+    def run_step(results, iteration):
+        """Run an iterative step."""
+        results = tf.concat([results, run_function(iteration)], axis=0)
+        return results, iteration + 1
+
+    # Gather the dimensions of the tensor and the results' rank.
+    size = tensor_length(tensor)
+    first = run_function(0)
+    results_shape = tf.TensorShape([None, *first.shape[1:]])
+    # Iteratively transform the sub-tensors along the first dimension.
+    results, _ = tf.while_loop(
+        cond=lambda _, iteration: tf.less(iteration, size), body=run_step,
+        loop_vars=[first, tf.constant(1, dtype=tf.int32)],
+        shape_invariants=[results_shape, tf.TensorShape([])]
+    )
+    return results
 
 
 def setup_activation_function(activation):
