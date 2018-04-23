@@ -82,10 +82,9 @@ def build_rmse_readouts(prediction, targets, batch_sizes=None):
     Return a dict recording the initial prediction Tensor, the Tensor of
     prediction errors and that of the root mean square prediction error.
     """
-    axis = list(range(len(prediction.shape) - 1))
     if batch_sizes is None:
         errors = prediction - targets
-        rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=axis))
+        rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=-2))
     else:
         mask = tf.sequence_mask(
             batch_sizes, maxlen=prediction.shape[1].value, dtype=tf.float32
@@ -94,7 +93,8 @@ def build_rmse_readouts(prediction, targets, batch_sizes=None):
             mask = tf.expand_dims(mask, -1)
         errors = (prediction - targets) * mask
         rmse = tf.sqrt(
-            tf.reduce_sum(tf.square(errors), axis=axis) / tf.reduce_sum(mask)
+            tf.reduce_sum(tf.square(errors), axis=-2)
+            / tf.reduce_sum(mask, axis=1)
         )
     return {'prediction': prediction, 'errors': errors, 'rmse': rmse}
 
