@@ -71,18 +71,31 @@ def build_dynamic_weights_matrix(size, window, complete=False):
     return weights
 
 
-def build_rmse_readouts(prediction, targets):
+def build_rmse_readouts(prediction, targets, batch_sizes=None):
     """Return a dict of tensorflow Tensors associated with prediction error.
 
-    prediction : Tensor of predicted values
-    targets    : Tensor of true values
+    prediction  : tensor of predicted values
+    targets     : tensor of true values
+    batch_sizes : optional tensor of true sequences length,
+                  for batched (or fixed-size) inputs
 
     Return a dict recording the initial prediction Tensor, the Tensor of
     prediction errors and that of the root mean square prediction error.
     """
-    errors = prediction - targets
-    axis = list(range(len(errors.shape) - 1))
-    rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=axis))
+    axis = list(range(len(prediction.shape) - 1))
+    if batch_sizes is None:
+        errors = prediction - targets
+        rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=axis))
+    else:
+        mask = tf.sequence_mask(
+            batch_sizes, maxlen=prediction.shape[1].value, dtype=tf.float32
+        )
+        for i in range(len(mask.shape), len(prediction.shape)):
+            mask = tf.expand_dims(mask, -1)
+        errors = (prediction - targets) * mask
+        rmse = tf.sqrt(
+            tf.reduce_sum(tf.square(errors), axis=axis) / tf.reduce_sum(mask)
+        )
     return {'prediction': prediction, 'errors': errors, 'rmse': rmse}
 
 
