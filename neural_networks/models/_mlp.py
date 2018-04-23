@@ -157,9 +157,19 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         of the network on the full set of samples.
         """
         # Compute sample-wise scores.
+        n_targets = targets_corpus[0].shape[-1]
         scores = np.array([
-            np.square(self.score(input_data, targets)) * len(input_data)
+            np.square(
+                np.reshape(self.score(input_data, targets), (n_targets,))
+            )
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
+        # Gather samples' lengths.
+        if len(self.input_shape) == 2:
+            sizes = np.array([len(data) for data in input_corpus])
+        else:
+            sizes = np.expand_dims(np.array([
+                min(len(data), self.input_shape[1]) for data in input_corpus
+            ]), 1)
         # Reduce scores and return them.
-        return np.sqrt(np.mean(scores, axis=0))
+        return np.sqrt(np.sum(scores * sizes, axis=0) / sizes.sum())
