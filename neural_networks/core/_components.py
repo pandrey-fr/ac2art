@@ -90,7 +90,7 @@ def build_rmse_readouts(prediction, targets, batch_sizes=None):
         mask = tf.sequence_mask(
             batch_sizes, maxlen=prediction.shape[1].value, dtype=tf.float32
         )
-        for i in range(len(mask.shape), len(prediction.shape)):
+        for _ in range(len(mask.shape), len(prediction.shape)):
             mask = tf.expand_dims(mask, -1)
         errors = (prediction - targets) * mask
         rmse = tf.sqrt(

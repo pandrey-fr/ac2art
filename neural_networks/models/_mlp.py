@@ -23,7 +23,10 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """Instantiate a multilayer perceptron for regression tasks.
 
         input_shape   : shape of the input data fed to the network,
-                        with the number of samples as first component
+                        of either [n_samples, input_size] shape
+                        or [n_batches, max_length, input_size],
+                        where the first may be variable (None)
+                        (tuple, list, tensorflow.TensorShape)
         n_targets     : number of real-valued targets to predict
         layers_config : list of tuples specifying a layer configuration,
                         made of a layer class (or short name), a number
@@ -112,7 +115,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     def _build_error_readouts(self):
         """Build error readouts of the network's prediction."""
         readouts = build_rmse_readouts(
-            self.readouts['prediction'], self.holders['targets']
+            self.readouts['prediction'], self.holders['targets'],
+            self.holders.get('batch_sizes')
         )
         self.readouts.update(readouts)
 
@@ -152,10 +156,10 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         Return the channel-wise root mean square prediction error
         of the network on the full set of samples.
         """
-        # Compute sample-wise errors.
-        errors = np.concatenate([
-            self.predict(input_data) - targets
+        # Compute sample-wise scores.
+        scores = np.array([
+            np.square(self.score(input_data, targets)) * len(input_data)
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Reduce scores and return them.
-        return np.sqrt(np.square(errors).mean(axis=0))
+        return np.sqrt(np.mean(scores, axis=0))

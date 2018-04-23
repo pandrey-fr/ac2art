@@ -9,6 +9,7 @@ import os
 import tensorflow as tf
 import numpy as np
 
+from data.commons.enhance import batch_to_sequences, sequences_to_batch
 from neural_networks.core import (
     build_layers_stack, refine_signal, validate_layer_config
 )
@@ -35,8 +36,10 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         ):
         """Initialize the neural network.
 
-        input_shape   : shape of the input data fed to the network, with
-                        the number of samples as first component
+        input_shape   : shape of the input data fed to the network,
+                        of either [n_samples, input_size] shape
+                        or [n_batches, max_length, input_size],
+                        where the first may be variable (None)
                         (tuple, list, tensorflow.TensorShape)
         n_targets     : number of real-valued targets to predict,
                         notwithstanding dynamic features
@@ -176,8 +179,12 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         check_type_validity(
             self.input_shape, (tuple, list, tf.TensorShape), 'input_shape'
         )
-        if len(self.input_shape) == 1:
-            raise TypeError("'input_shape' must be at least bi-dimensional.")
+        if len(self.input_shape) not in [2, 3]:
+            raise TypeError("'input_shape' must be of length 2 or 3.")
+        if any(dimension is None for dimension in self.input_shape[1:]):
+            raise ValueError(
+                "Only the first 'input_shape' dimension may be variable."
+            )
         # Validate the model's layers configuration.
         check_type_validity(self.layers_config, list, 'layers_config')
         for i, config in enumerate(self.layers_config):
@@ -208,16 +215,21 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         self.holders['input'] = tf.placeholder(tf.float32, self.input_shape)
         n_targets = self.n_targets * (1 + 2 * self.use_dynamic)
         self.holders['targets'] = tf.placeholder(
-            tf.float32, [self.input_shape[0], n_targets]
+            tf.float32, [*self.input_shape[:-1], n_targets]
         )
         self.holders['keep_prob'] = tf.placeholder(tf.float32, ())
+        if len(self.input_shape) == 3:
+            self.holders['batch_sizes'] = (
+                tf.placeholder(tf.int32, [self.input_shape[0]])
+            )
 
     @onetimemethod
     def _build_hidden_layers(self):
         """Build the network's hidden layers."""
         hidden_layers = build_layers_stack(
             self.holders['input'], self.layers_config,
-            self.holders['keep_prob'], check_config=False
+            self.holders['keep_prob'], self.holders.get('batch_sizes'),
+            check_config=False
         )
         self.layers.update(hidden_layers)
 
@@ -289,14 +301,28 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
 
         input_data : data to feed to the network
         targets    : optional true targets associated with the inputs
-        keep_prob  : probability to use for the dropout layers (default 1)
+        keep_prob  : dropout keep-probability to use (default 1)
         """
+        # Build the basic feed dict.
         feed_dict = {
             self.holders['input']: input_data,
             self.holders['keep_prob']: keep_prob
         }
+        # Alter data and update the feed dict when using batches of sequences.
+        if len(self.input_shape) == 3:
+            input_data, batch_sizes = (
+                sequences_to_batch(input_data, self.input_shape[1])
+            )
+            if targets is not None:
+                targets, _ = sequences_to_batch(targets, self.input_shape[1])
+            feed_dict.update({
+                self.holders['input']: input_data,
+                self.holders['batch_sizes']: batch_sizes
+            })
+        # Add the target data to the feed dict, if any.
         if targets is not None:
             feed_dict[self.holders['targets']] = targets
+        # Return the defined feed dict.
         return feed_dict
 
     def run_training_function(self, input_data, targets, keep_prob=1):
@@ -313,7 +339,14 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
         feed_dict = self.get_feed_dict(input_data)
-        return self.readouts['prediction'].eval(feed_dict, self.session)
+        prediction = self.readouts['prediction'].eval(feed_dict, self.session)
+        # De-batch the prediction, if relevant.
+        if len(self.input_shape) == 3:
+            prediction = batch_to_sequences(
+                prediction, feed_dict[self.holders['batch_sizes']]
+            )
+        # Return the predicted sequence(s).
+        return prediction
 
     @abstractmethod
     def score(self, input_data, targets):

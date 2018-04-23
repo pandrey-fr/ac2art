@@ -38,7 +38,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         ):
         """Instantiate the mixture density network.
 
-        input_shape   : shape of the input data fed to the network,
+        input_shape   : shape of the 2-D input data fed to the network,
                         with the number of samples as first component
         n_targets     : number of real-valued targets to predict
         n_components  : number of mixture components to model
@@ -67,6 +67,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any multilayer perceptron.
         super()._validate_args()
+        if len(self.input_data.shape) != 2:
+            raise TypeError("Batch learning is not supported by MDN classes.")
         # Control n_components argument and compute n_parameters.
         check_positive_int(self.n_components, 'n_components')
         self.n_parameters = self.n_components * (1 + 2 * self.n_targets)

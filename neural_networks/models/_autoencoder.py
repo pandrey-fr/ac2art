@@ -32,8 +32,10 @@ class AutoEncoder(MultilayerPerceptron):
         """Instantiate the auto-encoder network.
 
         input_shape    : shape of the input data fed to the network,
-                         with the number of samples as first component
-                         and including dynamic features
+                         of either [n_samples, input_size] shape
+                         or [n_batches, max_length, input_size],
+                         where the first may be variable (None)
+                         (tuple, list, tensorflow.TensorShape)
         n_targets      : number of real-valued targets to predict,
                          notwithstanding dynamic features
         encoder_config : list of tuples specifying the encoder's architecture
@@ -145,7 +147,9 @@ class AutoEncoder(MultilayerPerceptron):
             output, _ = refine_signal(
                 raw_output, norm_params, None, self.use_dynamic
             )
-            readouts = build_rmse_readouts(output, true_data)
+            readouts = build_rmse_readouts(
+                output, true_data, self.holders.get('batch_sizes')
+            )
             for name, readout in readouts.items():
                 self.readouts[part + '_' + name] = readout
         # Use the previous function to build partial RMSE readouts.
