@@ -18,13 +18,17 @@ class LowpassFilter(SignalFilter):
         ):
         """Initialize the filter.
 
-        signal        : signal to filter (1-D or 2-D tensorflow.Tensor)
+        signal        : signal to filter (tensorflow.Tensor of rank 1 to 3)
         cutoff        : cutoff frequency (or frequencies) of the filter, in Hz
                         (positive int or list, array or Tensor of such values)
         learnable     : whether the cutoff frequency may be adjusted, e.g. in
                         backpropagation procedures (bool, default True)
         sampling_rate : sampling rate of the signal, in Hz (int, default 200)
         window        : half-size of the filtering window (int, default 5)
+
+        Note: three-dimensional signals are treated as a batch of 2-D
+              signals stacked along the first dimension, and are filtered
+              as such, i.e. independently.
         """
         check_positive_int(sampling_rate, 'sampling_rate')
         check_positive_int(window, 'window')

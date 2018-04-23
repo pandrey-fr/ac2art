@@ -7,6 +7,7 @@ from abc import ABCMeta, abstractmethod
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.tf_utils import run_along_first_dim
 from utils import check_type_validity, onetimemethod
 
 
@@ -50,19 +51,23 @@ class SignalFilter(metaclass=ABCMeta):
     def __init__(self, signal, cutoff, learnable=True, **kwargs):
         """Initialize the filter.
 
-        signal    : signal to filter (1-D or 2-D tensorflow.Tensor)
+        signal    : signal to filter (tensorflow.Tensor of rank 1 to 3)
         cutoff    : cutoff frequency (or frequencies) of the filter, in Hz
                     (positive float or list, array or Tensor of such values)
         learnable : whether the cutoff frequency may be adjusted, e.g. in
                     backpropagation procedures (bool, default True)
 
         Subclasses may pass on any filter-designing keyword arguments.
+
+        Note: three-dimensional signals are treated as a batch of 2-D
+              signals stacked along the first dimension, and are filtered
+              as such, i.e. independently.
         """
         # Check signal validity and shape.
         check_type_validity(signal, tf.Tensor, 'signal')
-        if len(signal.shape) not in [1, 2]:
-            raise ValueError("'signal' rank is not in [1, 2].")
-        self.n_channels = signal.shape[1] if len(signal.shape) == 2 else 1
+        if len(signal.shape) not in (1, 2, 3):
+            raise ValueError("'signal' rank is not in [1, 2, 3].")
+        self.n_channels = signal.shape[-1] if len(signal.shape) > 1 else 1
         # Check and assign the cutoff frequencies of the filter.
         self.cutoff = None
         self._build_cutoff(cutoff)
@@ -75,7 +80,12 @@ class SignalFilter(metaclass=ABCMeta):
         self.filter = None
         self._build_filter(**kwargs)
         # Compute the filter's output.
-        self.output = filter_1d_signal(signal, self.filter)
+        if len(signal.shape) <= 2:
+            self.output = filter_1d_signal(signal, self.filter)
+        else:
+            self.output = run_along_first_dim(
+                filter_1d_signal, signal, self.filter
+            )
         # Record the instance's configuration.
         self.configuration = {
             'class': self.__class__.__module__ + '.' + self.__class__.__name__,
