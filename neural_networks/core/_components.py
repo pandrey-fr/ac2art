@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.core import build_layers_stack
-from neural_networks.tf_utils import get_delta_features
+from neural_networks.tf_utils import add_dynamic_features, run_along_first_dim
 
 
 def build_dynamic_weights_matrix(size, window, complete=False):
@@ -81,7 +81,8 @@ def build_rmse_readouts(prediction, targets):
     prediction errors and that of the root mean square prediction error.
     """
     errors = prediction - targets
-    rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=0))
+    axis = list(range(len(errors.shape) - 1))
+    rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=axis))
     return {'prediction': prediction, 'errors': errors, 'rmse': rmse}
 
 
@@ -90,13 +91,15 @@ def refine_signal(
     ):
     """Refine a multi-dimensional signal.
 
-    signal        : bi-dimensional tensor containing the signal
+    signal        : bi-dimensional tensor containing the signal,
+                    or rank 3 tensor batching such signals
     norm_params   : optional array of normalization parameters by
                     which to scale the signal's channels
     filter_config : optional tuple specifying a signal filter for smoothing
     add_dynamic   : whether to add delta and deltadelta features
                     to the refined signal (bool, default False)
     """
+    tf.assert_rank_in(signal, (2, 3))
     # Optionally de-normalize the initial signal.
     if norm_params is not None:
         signal *= norm_params
@@ -110,8 +113,9 @@ def refine_signal(
         signal = top_filter.output
     # Optionally add dynamic features to the signal.
     if add_dynamic:
-        delta = get_delta_features(signal, window=5)
-        deltadelta = get_delta_features(delta, window=5)
-        signal = tf.concat([signal, delta, deltadelta], axis=1)
+        signal = (
+            add_dynamic_features(signal, window=5) if len(signal.shape) == 2
+            else run_along_first_dim(add_dynamic_features, signal, window=5)
+        )
     # Return the refined signal and the defined top filter, if any.
     return signal, top_filter

@@ -10,6 +10,21 @@ import numpy as np
 from utils import check_type_validity, get_object, get_object_name
 
 
+def add_dynamic_features(tensor, window=5, axis=1):
+    """Compute delta and deltadelta features to a given tensor.
+
+    tensor : rank 2 tensor whose delta and delta features to compute
+    window : half-size of the window of lags used to compute
+             delta features (positive int, default 5)
+    axis   : axis along which to stack the basic, delta and deltadelta
+             features (default 1, i.e. horizontal stacking)
+    """
+    tf.assert_rank(tensor, 2)
+    delta = get_delta_features(tensor, window)
+    deltadelta = get_delta_features(tensor, window)
+    return tf.concat([tensor, delta, deltadelta], axis=axis)
+
+
 def binary_step(tensor):
     """Return a binary output depending on an input's positivity."""
     return tf.cast(tensor > 0, tf.float32)
