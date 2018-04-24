@@ -244,6 +244,10 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         targets_corpus : sequence of true targets arrays
         loss           : quantity to score ; either 'likelihood' of the
                          produced GMM or 'rmse' of the derived prediction
+
+        Corpora of input and target data must include numpy arrays
+        of values to feed to the network and to evaluate against,
+        without any nested arrays structure.
         """
         # Add an argument unneeded by parent; pylint: disable=arguments-differ
         # Check 'loss' argument validity. Handle the rmse metric case.
@@ -254,7 +258,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             raise ValueError("Unknown loss quantity: '%s'.")
         # Handle the likelihood metric case.
         # Compute sample-wise likelihoods.
-        scores = np.array([
+        scores = np.concatenate([
             self.score(input_data, targets, loss='likelihood')
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])

@@ -153,15 +153,16 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         input_corpus   : sequence of input data arrays
         targets_corpus : sequence of true targets arrays
 
+        Corpora of input and target data must include numpy arrays
+        of values to feed to the network and to evaluate against,
+        without any nested arrays structure.
+
         Return the channel-wise root mean square prediction error
         of the network on the full set of samples.
         """
         # Compute sample-wise scores.
-        n_targets = targets_corpus[0].shape[-1]
-        scores = np.array([
-            np.square(
-                np.reshape(self.score(input_data, targets), (n_targets,))
-            )
+        scores = np.concatenate([
+            np.square(self.score(input_data, targets))
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Gather samples' lengths.
