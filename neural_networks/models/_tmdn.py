@@ -9,6 +9,7 @@ from neural_networks.components.mlpg import (
     generate_trajectory_from_gaussian_mixture
 )
 from neural_networks.models import MixtureDensityNetwork
+from neural_networks.tf_utils import run_along_first_dim
 from utils import onetimemethod
 
 
@@ -39,10 +40,6 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any mixture density network.
         super()._validate_args()
-        if len(self.input_shape) == 3:
-            raise NotImplementedError(
-                "Batch learning not yet implemented for TrajectoryMDN."
-            )
         # Control n_targets argument.
         if self.n_targets % 3:
             raise ValueError(
@@ -54,17 +51,33 @@ class TrajectoryMDN(MixtureDensityNetwork):
     def _build_placeholders(self):
         """Build the instance's placeholders."""
         super()._build_placeholders()
-        self.holders['_delta_weights'] = (
-            tf.placeholder(tf.float64, [None, None])
-        )
+        if len(self.input_shape) == 3:
+            delta_weights = build_dynamic_weights_matrix(
+                size=self.input_shape[1], window=5, complete=True
+            )
+            self.holders['_delta_weights'] = tf.constant(
+                delta_weights, dtype=tf.float64
+            )
+        else:
+            self.holders['_delta_weights'] = (
+                tf.placeholder(tf.float64, [None, None])
+            )
 
     @onetimemethod
     def _build_initial_prediction(self):
         """Build a trajectory prediction using the MLPG algorithm."""
-        trajectory = generate_trajectory_from_gaussian_mixture(
-            self.readouts['priors'], self.readouts['means'],
-            self.readouts['std_deviations'], self.holders['_delta_weights']
+        parameters = tuple(
+            self.readouts[key] for key in ('priors', 'means', 'std_deviations')
         )
+        if len(self.input_shape) == 2:
+            trajectory = generate_trajectory_from_gaussian_mixture(
+                *parameters, weights=self.holders['_delta_weights']
+            )
+        else:
+            trajectory = run_along_first_dim(
+                generate_trajectory_from_gaussian_mixture,
+                tensors=parameters, weights=self.holders['_delta_weights']
+            )
         self.readouts['raw_prediction'] = tf.cast(trajectory, tf.float32)
 
     def get_feed_dict(
@@ -79,7 +92,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """
         feed_dict = super().get_feed_dict(input_data, targets, keep_prob)
         # If needed, generate a delta weights matrix and set it to be fed.
-        if loss == 'rmse':
+        if loss == 'rmse' and len(self.input_shape) == 2:
             weights = build_dynamic_weights_matrix(
                 len(input_data), window=5, complete=True
             )
