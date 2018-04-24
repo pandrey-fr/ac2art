@@ -39,6 +39,10 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any mixture density network.
         super()._validate_args()
+        if len(self.input_shape) == 3:
+            raise NotImplementedError(
+                "Batch learning not yet implemented for TrajectoryMDN."
+            )
         # Control n_targets argument.
         if self.n_targets % 3:
             raise ValueError(
