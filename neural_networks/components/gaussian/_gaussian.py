@@ -34,31 +34,36 @@ def gaussian_mixture_density(data, priors, means, stds):
 
     The evaluated gaussian distributions may be univariate or multivariate.
     For multivariate cases, no covariance between terms is considered.
+    Data may also be made of batched sequences of multivariate points
+    (3-D tensor of dimensions [n_batches, batches_length, n_dim]).
 
     data   : points at which to evaluate each density function
-             (1-D or 2-D tensorflow.Tensor)
+             (tensorflow.Tensor of rank r in [1, 3])
     priors : prior probability of each mixture component,
-             for each mixture (2-D tensorflow.Tensor)
+             for each mixture (tensorflow.Tensor of rank max(r, 2))
     means  : mean of each mixture component, for each mixture
-             (2-D or 3-D tensorflow.Tensor)
+             (tensorflow.Tensor of rank r + 1)
     stds   : standard deviation of each mixture component,
-             for each mixture (2-D tensorflow.Tensor)
+             for each mixture (tensorflow.Tensor of rank r + 1)
 
-    Return a 1-D Tensor (one row per mixture).
+    Return a 1-D Tensor gathering point-wise density for data made
+    of a single sequence (rank in [1, 2]), or a 2-D Tensor gathering
+    sequence-wise point-wise density for batched data (rank 3).
     """
     # Check ranks validity
-    tf.assert_rank_in(data, [1, 2])
-    tf.assert_rank(priors, 2)
-    tf.assert_rank_in(means, [2, 3])
-    tf.assert_rank_in(stds, [2, 3])
+    tf.assert_rank_in(data, [1, 2, 3])
+    rank = tf.rank(data) + 1
+    tf.assert_rank(priors, tf.maximum(2, rank - 1))
+    tf.assert_rank(means, rank)
+    tf.assert_rank(stds, rank)
     # Handle the univariate density case.
     if len(data.shape) == 1 or data.shape[1].value == 1:
         return tf.reduce_sum(
             priors * gaussian_density(data, means, stds), axis=1
         )
     # Handle the multivariate density case.
-    data = tf.expand_dims(data, 1)
+    data = tf.expand_dims(data, -2)
     if len(stds.shape) == 2:
         stds = tf.expand_dims(stds, 2)
-    densities = tf.reduce_prod(gaussian_density(data, means, stds), axis=2)
-    return tf.reduce_sum(priors * densities, axis=1)
+    densities = tf.reduce_prod(gaussian_density(data, means, stds), axis=-1)
+    return tf.reduce_sum(priors * densities, axis=-1)
