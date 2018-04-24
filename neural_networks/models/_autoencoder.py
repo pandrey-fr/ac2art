@@ -64,7 +64,7 @@ class AutoEncoder(MultilayerPerceptron):
         # Compute the number of elements to reconstruct.
         check_type_validity(input_shape, (list, tuple), 'input_shape')
         check_type_validity(use_dynamic, bool, 'use_dynamic')
-        n_inputs = input_shape[1]
+        n_inputs = input_shape[-1]
         if use_dynamic:
             if n_inputs % 3:
                 raise ValueError(
@@ -158,17 +158,25 @@ class AutoEncoder(MultilayerPerceptron):
         # Build wrappers aggregating predictions and scores of the model.
         self.readouts['rmse'] = tf.concat([
             self.readouts['encoder_rmse'], self.readouts['decoder_rmse']
-        ], axis=0)
+        ], axis=-1)
         self.readouts['prediction'] = tf.concat([
             self.readouts['encoder_prediction'],
             self.readouts['decoder_prediction']
-        ], axis=1)
+        ], axis=-1)
 
     def predict(self, input_data):
         """Predict the targets associated with a given set of inputs."""
         prediction = super().predict(input_data)
-        encoded, decoded = self._split_metrics(prediction.T)
-        return encoded.T, decoded.T
+        if len(prediction.shape) > 1:
+            return self._split_metrics(prediction)
+        else:
+            encoder_pred = [None] * len(prediction)
+            decoder_pred = [None] * len(prediction)
+            for i, pred in enumerate(prediction):
+                enc_pred, dec_pred = self._split_metrics(pred)
+                encoder_pred[i] = enc_pred
+                decoder_pred[i] = dec_pred
+            return encoder_pred, decoder_pred
 
     def score(self, input_data, targets):
         """Compute the root mean square prediction errors of the network.
@@ -189,20 +197,25 @@ class AutoEncoder(MultilayerPerceptron):
         input_corpus   : sequence of input data arrays
         targets_corpus : sequence of true targets arrays
 
-        Return the channel-wise root mean square prediction error
-        of the network on the full set of samples.
+        Corpora of input and target data must include numpy arrays
+        of values to feed to the network and to evaluate against,
+        without any nested arrays structure
+
+        Return a couple of numpy arrays containing respectively
+        the prediction and reconstruction by-channel root mean
+        square errors on the full set of sample pairs.
         """
-        # Compute sample-wise errors.
-        predict = super().predict
-        errors = np.concatenate([
-            predict(input_data) - np.concatenate([targets, input_data], axis=1)
+        # Compute sample-wise scores.
+        scores = np.concatenate([
+            np.square(super().score(input_data, targets))
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Reduce scores and return them.
-        scores = np.sqrt(np.square(errors).mean(axis=0))
+        sizes = self._get_corpus_sizes(input_corpus)
+        scores = np.sqrt(np.sum(scores * sizes, axis=0) / sizes.sum())
         return self._split_metrics(scores)
 
     def _split_metrics(self, metrics):
         """Split an array aggregating encoder and decoder outputs."""
         n_targets = self.n_targets * (3 if self.use_dynamic else 1)
-        return metrics[:n_targets], metrics[n_targets:]
+        return metrics[..., :n_targets], metrics[..., n_targets:]
