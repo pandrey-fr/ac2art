@@ -69,11 +69,8 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     tf.assert_equal(means.shape[1], stds.shape[1])
     # Pile up the static and dynamic parameters.
     n_targets = means.shape[1].value // 3
-    for tensor in (means, stds):
-        tensor = tf.concat([
-            tensor[:, i:i + n_targets]
-            for i in range(0, 3 * n_targets, n_targets)
-        ], axis=0)
+    means = _reshape_moments_tensor(means, n_targets)
+    stds = _reshape_moments_tensor(stds, n_targets)
     # Generate the most likely trajectory for each target dimension.
     features = tf.concat([
         generate_univariate_trajectory(means[:, k], stds[:, k], weights)
@@ -82,6 +79,13 @@ def generate_trajectory_from_gaussian(means, stds, weights):
     # Properly reshape the results and return them.
     stacks = tf.unstack(tf.reshape(features, (3, -1, n_targets)))
     return tf.concat(stacks, axis=1)
+
+
+def _reshape_moments_tensor(tensor, n_targets):
+    """Reshape a tensor to stack vertically static and dynamic features."""
+    return tf.concat([
+        tensor[:, i:i + n_targets] for i in range(0, 3 * n_targets, n_targets)
+    ], axis=0)
 
 
 def generate_trajectory_from_gaussian_mixture(
