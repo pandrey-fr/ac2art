@@ -169,38 +169,47 @@ def reduce_finite_mean(tensor, axis=None):
     return sums / tf.cast(n_obs, tf.float32)
 
 
-def run_along_first_dim(function, tensor, *args, **kwargs):
-    """Apply a function along the first dimension of a tensor.
+def run_along_first_dim(function, tensors, *args, **kwargs):
+    """Apply a function along the first dimension of one or more tensors.
 
     This is useful when working on a variable-size tensor batching
     tensors which need transforming independently through the same
     operation.
 
-    function : function expecting a tensor of rank n and returning
-               a tensor of rank m
-    tensor   : a tensor of rank n + 1 along whose first dimension
-               the `function` is to be applied
+    function : function expecting one or more tensors of ranks {n}
+               and returning a tensor of rank m
+    tensors  : a tensor or tuple of tensors of ranks {n} + 1 along
+               whose first dimension `function` is to be applied
 
     Return a tensor of rank m + 1, composed of the results of
     applying the function along the first dimension of the
-    input tensor.
+    input tensor(s).
 
     Any additional arguments and keyword arguments expected by
     `function` may also be passed.
     """
+    # Check tensors validity.
+    if isinstance(tensors, tf.Tensor):
+        tensors = (tensors,)
+    elif isinstance(tensors, (tuple, list)):
+        if not all(isinstance(tensor, tf.Tensor) for tensor in tensors):
+            raise TypeError(
+                "'tensors' should be a sequence of tensorflow.Tensor objects."
+            )
     # Define functions to transform sub-tensors iteratively.
     def run_function(iteration):
-        """Run the function on a given sub-tensor."""
-        nonlocal tensor, function, args, kwargs
-        return tf.expand_dims(function(tensor[iteration], *args, **kwargs), 0)
+        """Run the function on sub-tensor(s) of given index."""
+        nonlocal tensors, function, args, kwargs
+        units = tuple(tensor[iteration] for tensor in tensors)
+        return tf.expand_dims(function(*units, *args, **kwargs), 0)
 
     def run_step(results, iteration):
         """Run an iterative step."""
         results = tf.concat([results, run_function(iteration)], axis=0)
         return results, iteration + 1
 
-    # Gather the dimensions of the tensor and the results' rank.
-    size = tensor_length(tensor)
+    # Gather the dimensions of the tensors and the results' rank.
+    size = tensor_length(tensors[0])
     first = run_function(0)
     results_shape = tf.TensorShape([None, *first.shape[1:]])
     # Iteratively transform the sub-tensors along the first dimension.
