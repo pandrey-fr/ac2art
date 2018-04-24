@@ -170,36 +170,36 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         minimize_rmse = self.training_function
 
         # Declare a two-fold train step function.
-        def train_step(fit='likelihood'):
+        def train_step(loss='likelihood'):
             """Modular training step, depending on the metric to use."""
             nonlocal maximize_likelihood
             nonlocal minimize_rmse
-            if fit == 'likelihood':
+            if loss == 'likelihood':
                 return maximize_likelihood
-            elif fit == 'trajectory':
+            elif loss == 'rmse':
                 return minimize_rmse
             else:
-                raise ValueError("Unknown cost function '%s'." % fit)
+                raise ValueError("Unknown loss quantity '%s'." % loss)
 
         # Assign the network's train step function.
         self.training_function = train_step
 
     def get_feed_dict(
-            self, input_data, targets=None, keep_prob=1, fit='trajectory'
+            self, input_data, targets=None, keep_prob=1, loss='rmse'
         ):
         """Return a tensorflow feeding dictionary out of provided arguments.
 
         input_data : data to feed to the network
         targets    : optional true targets associated with the inputs
         keep_prob  : probability to use for the dropout layers (default 1)
-        fit        : output quantity used (str in {'likelihood', 'trajectory'})
+        loss       : loss computed (str in {'likelihood', 'rmse'})
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
-        # 'fit' argument is for subclasses; pylint: disable=unused-argument
+        # 'loss' argument is for subclasses; pylint: disable=unused-argument
         return super().get_feed_dict(input_data, targets, keep_prob)
 
     def run_training_function(
-            self, input_data, targets, keep_prob=1, fit='likelihood'
+            self, input_data, targets, keep_prob=1, loss='likelihood'
         ):
         """Run a training step of the model.
 
@@ -209,55 +209,53 @@ class MixtureDensityNetwork(MultilayerPerceptron):
                      (numpy.ndarray or pandas structure)
         keep_prob  : probability for each unit to have its outputs used in
                      the training procedure (float in [0., 1.], default 1.)
-        fit        : kind of output to use to as to fit the model ; either
-                     'trajectory' RMSE or produced GMM 'likelihood'
+        loss       : loss quantity to minimize ; either produced GMM's
+                     'likelihood' or derived trajectory's 'rmse'
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
-        feed_dict = self.get_feed_dict(input_data, targets, keep_prob, fit)
-        self.session.run(self.training_function(fit), feed_dict)
+        feed_dict = self.get_feed_dict(input_data, targets, keep_prob, loss)
+        self.session.run(self.training_function(loss), feed_dict)
 
-    def score(self, input_data, targets, score='trajectory'):
+    def score(self, input_data, targets, loss='rmse'):
         """Return a given metric evaluating the network.
 
         input_data : input data sample to evalute the model on which
         targets    : true targets associated with the input dataset
-        score      : choice of quantity to score ; may be 'likelihood'
-                     of the produced GMM or root mean square error of
-                     the predicted 'trajectory'
+        loss       : quantity to score ; either 'likelihood' of the
+                     produced GMM or 'rmse' of the derived prediction
         """
         # Add an argument unneeded by parents; pylint: disable=arguments-differ
-        # Check 'score' argument validity and select the associated metric.
-        check_type_validity(score, str, 'score')
-        if score == 'likelihood':
-            metric = self.readouts['mean_log_likelihood']
-        elif score == 'trajectory':
+        # Check 'loss' argument validity and select the associated metric.
+        check_type_validity(loss, str, 'loss')
+        if loss == 'rmse':
             metric = self.readouts['rmse']
+        elif loss == 'likelihood':
+            metric = self.readouts['mean_log_likelihood']
         else:
-            raise ValueError("Unknown score method: '%s'.")
+            raise ValueError("Unknown loss quantity: '%s'.")
         # Evaluate the selected metric.
-        feed_dict = self.get_feed_dict(input_data, targets, fit=score)
+        feed_dict = self.get_feed_dict(input_data, targets, loss=loss)
         return metric.eval(feed_dict, self.session)
 
-    def score_corpus(self, input_corpus, targets_corpus, score='trajectory'):
+    def score_corpus(self, input_corpus, targets_corpus, loss='rmse'):
         """Iteratively compute the network's likelihood or prediction error.
 
         input_corpus   : sequence of input data arrays
         targets_corpus : sequence of true targets arrays
-        score          : choice of quantity to score ; may be 'likelihood'
-                         of the produced GMM or root mean square error of
-                         the predicted 'trajectory'
+        loss           : quantity to score ; either 'likelihood' of the
+                         produced GMM or 'rmse' of the derived prediction
         """
         # Add an argument unneeded by parent; pylint: disable=arguments-differ
-        # Check 'score' argument validity. Handle the rmse metric case.
-        check_type_validity(score, str, 'score')
-        if score == 'trajectory':
+        # Check 'loss' argument validity. Handle the rmse metric case.
+        check_type_validity(loss, str, 'loss')
+        if loss == 'rmse':
             return super().score_corpus(input_corpus, targets_corpus)
-        elif score != 'likelihood':
-            raise ValueError("Unknown score method: '%s'.")
+        elif loss != 'likelihood':
+            raise ValueError("Unknown loss quantity: '%s'.")
         # Handle the likelihood metric case.
         # Compute sample-wise likelihoods.
         scores = np.array([
-            self.score(input_data, targets, score='likelihood')
+            self.score(input_data, targets, loss='likelihood')
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Gather samples' lengths.
