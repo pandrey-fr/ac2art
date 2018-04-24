@@ -168,8 +168,9 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         if len(self.input_shape) == 2:
             sizes = np.array([len(data) for data in input_corpus])
         else:
-            sizes = np.expand_dims(np.array([
+            sizes = np.array([
                 min(len(data), self.input_shape[1]) for data in input_corpus
-            ]), 1)
+            ])
+        sizes = np.expand_dims(sizes, 1)
         # Reduce scores and return them.
         return np.sqrt(np.sum(scores * sizes, axis=0) / sizes.sum())
