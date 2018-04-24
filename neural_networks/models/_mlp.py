@@ -165,12 +165,19 @@ class MultilayerPerceptron(DeepNeuralNetwork):
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Gather samples' lengths.
-        if len(self.input_shape) == 2:
-            sizes = np.array([len(data) for data in input_corpus])
-        else:
-            sizes = np.array([
-                min(len(data), self.input_shape[1]) for data in input_corpus
-            ])
-        sizes = np.expand_dims(sizes, 1)
+        sizes = self._get_corpus_sizes(input_corpus)
         # Reduce scores and return them.
         return np.sqrt(np.sum(scores * sizes, axis=0) / sizes.sum())
+
+    def _get_corpus_sizes(self, corpus):
+        """Return an array gathering the lengths of a corpus' sequences.
+
+        Auxiliary method to `score_corpus`, to be used only as such.
+        """
+        if len(self.input_shape) == 2:
+            sizes = np.array([len(data) for data in corpus])
+        else:
+            sizes = np.array([
+                min(len(data), self.input_shape[1]) for data in corpus
+            ])
+        return np.expand_dims(sizes, 1)
