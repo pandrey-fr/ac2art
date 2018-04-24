@@ -3,6 +3,7 @@
 """Class implementing Mixture Density Networks."""
 
 import tensorflow as tf
+import numpy as np
 
 from neural_networks.components.gaussian import (
     gaussian_density, gaussian_mixture_density
@@ -67,8 +68,6 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         """Process the initialization arguments of the instance."""
         # Control arguments common the any multilayer perceptron.
         super()._validate_args()
-        if len(self.input_data.shape) != 2:
-            raise TypeError("Batch learning is not supported by MDN classes.")
         # Control n_components argument and compute n_parameters.
         check_positive_int(self.n_components, 'n_components')
         self.n_parameters = self.n_components * (1 + 2 * self.n_targets)
@@ -96,16 +95,22 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             self.layers['readout_layer'].output, tf.float64
         )
         self.readouts['priors'] = (
-            tf.nn.softmax(raw_parameters[:, :self.n_components])
+            tf.nn.softmax(raw_parameters[..., :self.n_components])
         )
+        if len(self.input_shape) == 2:
+            moments_shape = (-1, self.n_components, self.n_targets)
+        else:
+            moments_shape = (
+                -1, self.input_shape[1], self.n_components, self.n_targets
+            )
         n_means = self.n_components * self.n_targets
         self.readouts['means'] = tf.reshape(
-            raw_parameters[:, self.n_components:self.n_components + n_means],
-            (-1, self.n_components, self.n_targets)
+            raw_parameters[..., self.n_components:self.n_components + n_means],
+            moments_shape
         )
         self.readouts['std_deviations'] = tf.reshape(
-            tf.exp(raw_parameters[:, self.n_components + n_means:]),
-            (-1, self.n_components, self.n_targets)
+            tf.exp(raw_parameters[..., self.n_components + n_means:]),
+            moments_shape
         )
 
     @onetimemethod
@@ -121,8 +126,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             self.readouts['means'], self.readouts['std_deviations']
         )
         # Define the error function and training step optimization program.
-        self.readouts['mean_log_likelihood'] = (
-            tf.reduce_mean(tf.log(self.readouts['likelihood'] + 1e-62))
+        self.readouts['mean_log_likelihood'] = tf.reduce_mean(
+            tf.log(self.readouts['likelihood'] + 1e-62), axis=-1
         )
 
     @onetimemethod
@@ -135,21 +140,21 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         component.
         """
         # Gather parameters for better code readability.
-        priors = tf.expand_dims(self.readouts['priors'], 2)
+        priors = tf.expand_dims(self.readouts['priors'], -1)
         means = self.readouts['means']
         stds = self.readouts['std_deviations']
         # Compute the mean of the components' means, weighted by priors.
         # Use this as an initial prediction.
-        initial = tf.expand_dims(tf.reduce_sum(priors * means, axis=1), 1)
+        initial = tf.expand_dims(tf.reduce_sum(priors * means, axis=-2), -2)
         # Compute the occupancy probabilities of the mixture's components.
         densities = tf.reduce_prod(
-            gaussian_density(initial, means, stds), axis=2
+            gaussian_density(initial, means, stds), axis=-1
         )
-        norm = tf.expand_dims(tf.reduce_sum(densities, axis=1), 1)
-        occupancy = tf.expand_dims(densities / (norm + 1e-30), 2)
+        norm = tf.expand_dims(tf.reduce_sum(densities, axis=-1), -1)
+        occupancy = tf.expand_dims(densities / (norm + 1e-30), -1)
         # Compute the mean of the component's means, weighted by occupancy.
         # Use this as the targets' prediction.
-        prediction = tf.reduce_sum(occupancy * means, axis=1)
+        prediction = tf.reduce_sum(occupancy * means, axis=-2)
         self.readouts['raw_prediction'] = tf.cast(prediction, tf.float32)
 
     @onetimemethod
@@ -180,7 +185,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         self.training_function = train_step
 
     def get_feed_dict(
-            self, input_data, targets=None, keep_prob=1, fit='likelihood'
+            self, input_data, targets=None, keep_prob=1, fit='trajectory'
         ):
         """Return a tensorflow feeding dictionary out of provided arguments.
 
@@ -211,12 +216,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         feed_dict = self.get_feed_dict(input_data, targets, keep_prob, fit)
         self.session.run(self.training_function(fit), feed_dict)
 
-    def predict(self, input_data):
-        """Predict the targets associated with a given set of inputs."""
-        feed_dict = self.get_feed_dict(input_data, fit='trajectory')
-        return self.readouts['prediction'].eval(feed_dict, self.session)
-
-    def score(self, input_data, targets, score='likelihood'):
+    def score(self, input_data, targets, score='trajectory'):
         """Return a given metric evaluating the network.
 
         input_data : input data sample to evalute the model on which
@@ -237,3 +237,30 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         # Evaluate the selected metric.
         feed_dict = self.get_feed_dict(input_data, targets, fit=score)
         return metric.eval(feed_dict, self.session)
+
+    def score_corpus(self, input_corpus, targets_corpus, score='trajectory'):
+        """Iteratively compute the network's likelihood or prediction error.
+
+        input_corpus   : sequence of input data arrays
+        targets_corpus : sequence of true targets arrays
+        score          : choice of quantity to score ; may be 'likelihood'
+                         of the produced GMM or root mean square error of
+                         the predicted 'trajectory'
+        """
+        # Add an argument unneeded by parent; pylint: disable=arguments-differ
+        # Check 'score' argument validity. Handle the rmse metric case.
+        check_type_validity(score, str, 'score')
+        if score == 'trajectory':
+            return super().score_corpus(input_corpus, targets_corpus)
+        elif score != 'likelihood':
+            raise ValueError("Unknown score method: '%s'.")
+        # Handle the likelihood metric case.
+        # Compute sample-wise likelihoods.
+        scores = np.array([
+            self.score(input_data, targets, score='likelihood')
+            for input_data, targets in zip(input_corpus, targets_corpus)
+        ])
+        # Gather samples' lengths.
+        sizes = self._get_corpus_sizes(input_corpus)
+        # Reduce scores and return them.
+        return np.sum(scores * sizes, axis=0) / sizes.sum()
