@@ -206,8 +206,9 @@ class AutoEncoder(MultilayerPerceptron):
         square errors on the full set of sample pairs.
         """
         # Compute sample-wise scores.
+        get_score = super().score
         scores = np.concatenate([
-            np.square(super().score(input_data, targets))
+            np.square(get_score(input_data, targets))
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Reduce scores and return them.
