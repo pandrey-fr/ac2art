@@ -177,8 +177,9 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         """
         if len(self.input_shape) == 2:
             sizes = np.array([len(data) for data in corpus])
+        elif self.input_shape[1] is None:
+            sizes = np.array([len(data) for data in corpus])
         else:
-            sizes = np.array([
-                min(len(data), self.input_shape[1]) for data in corpus
-            ])
+            max_length = self.input_shape[1]
+            sizes = np.array([min(len(data), max_length) for data in corpus])
         return np.expand_dims(sizes, 1)

@@ -94,15 +94,19 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         raw_parameters = tf.cast(
             self.layers['readout_layer'].output, tf.float64
         )
+        # Define the priors tensor.
         self.readouts['priors'] = (
             tf.nn.softmax(raw_parameters[..., :self.n_components])
         )
+        # Select the shape of the means and standard deviations tensors.
+        shape = tf.shape(raw_parameters)
         if len(self.input_shape) == 2:
-            moments_shape = (-1, self.n_components, self.n_targets)
+            moments_shape = (shape[0], self.n_components, self.n_targets)
         else:
             moments_shape = (
-                -1, self.input_shape[1], self.n_components, self.n_targets
+                shape[0], shape[1], self.n_components, self.n_targets
             )
+        # Define the means and standard deviations tensors.
         n_means = self.n_components * self.n_targets
         self.readouts['means'] = tf.reshape(
             raw_parameters[..., self.n_components:self.n_components + n_means],

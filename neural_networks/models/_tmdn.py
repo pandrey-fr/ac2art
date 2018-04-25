@@ -51,7 +51,7 @@ class TrajectoryMDN(MixtureDensityNetwork):
     def _build_placeholders(self):
         """Build the instance's placeholders."""
         super()._build_placeholders()
-        if len(self.input_shape) == 3:
+        if len(self.input_shape) == 3 and self.input_shape[1] is not None:
             delta_weights = build_dynamic_weights_matrix(
                 size=self.input_shape[1], window=5, complete=True
             )
@@ -92,9 +92,11 @@ class TrajectoryMDN(MixtureDensityNetwork):
         """
         feed_dict = super().get_feed_dict(input_data, targets, keep_prob)
         # If needed, generate a delta weights matrix and set it to be fed.
-        if loss == 'rmse' and len(self.input_shape) == 2:
-            weights = build_dynamic_weights_matrix(
-                len(input_data), window=5, complete=True
-            )
-            feed_dict[self.holders['_delta_weights']] = weights
+        if loss == 'rmse':
+            if len(self.input_shape) == 2 or self.input_shape[1] is None:
+                length = feed_dict[self.holders['input']].shape[-2]
+                weights = build_dynamic_weights_matrix(
+                    length, window=5, complete=True
+                )
+                feed_dict[self.holders['_delta_weights']] = weights
         return feed_dict

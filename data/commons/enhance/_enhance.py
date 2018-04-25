@@ -133,12 +133,13 @@ def lowpass_filter(signal, cutoff, sample_rate, order=5):
     ], axis=1)
 
 
-def sequences_to_batch(sequences, length):
+def sequences_to_batch(sequences, length=None):
     """Batch a set of data sequences into a three-dimensional array.
 
     sequences : list of array of two-dimensional numpy arrays sharing
                 the same shape on their last dimension
-    length    : size of the batched array's second dimension
+    length    : optional size of the batched array's second dimension
+                (otherwise, maximum sample length is used)
 
     Return a numpy.array of shape [n_sequences, length, sequences_width].
     """
@@ -161,12 +162,15 @@ def sequences_to_batch(sequences, length):
         raise TypeError(
             "All sequences must be 2-D numpy arrays of same number of columns."
         )
-    # Check length argument validity.
-    check_positive_int(length, 'length')
-    # Gather the length of each and every sequence.
-    batch_sizes = np.array([
-        min(len(sequence), length) for sequence in sequences
-    ])
+    # Gather the length of each and every sequence, truncated if needed.
+    if length is None:
+        batch_sizes = np.array([len(sequence) for sequence in sequences])
+        length = np.max(batch_sizes)
+    else:
+        check_positive_int(length, 'length')
+        batch_sizes = np.array([
+            min(len(sequence), length) for sequence in sequences
+        ])
     # Zero-pad the sequences and concatenate them.
     batched = np.array([
         np.concatenate([

@@ -39,7 +39,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         input_shape   : shape of the input data fed to the network,
                         of either [n_samples, input_size] shape
                         or [n_batches, max_length, input_size],
-                        where the first may be variable (None)
+                        where the last axis must be fixed (non-None)
                         (tuple, list, tensorflow.TensorShape)
         n_targets     : number of real-valued targets to predict,
                         notwithstanding dynamic features
@@ -117,11 +117,12 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     @property
     def _neural_weights(self):
         """Return the weight and biases tensors of all neural layers."""
+        classes = (AbstractRNN, DenseLayer)
         return [
             layer.weights if (
                 isinstance(layer, AbstractRNN) or layer.bias is None
             ) else (layer.weights, layer.bias)
-            for layer in self.layers.values() if hasattr(layer, 'weights')
+            for layer in self.layers.values() if isinstance(layer, classes)
         ]
 
     @property
@@ -180,10 +181,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         )
         if len(self.input_shape) not in [2, 3]:
             raise TypeError("'input_shape' must be of length 2 or 3.")
-        if any(dimension is None for dimension in self.input_shape[1:]):
-            raise ValueError(
-                "Only the first 'input_shape' dimension may be variable."
-            )
+        if self.input_shape[-1] is None:
+            raise ValueError("Last 'input_shape' dimension must be fixed.")
         # Validate the model's layers configuration.
         check_type_validity(self.layers_config, list, 'layers_config')
         for i, config in enumerate(self.layers_config):
@@ -309,11 +308,10 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         }
         # Alter data and update the feed dict when using batches of sequences.
         if len(self.input_shape) == 3:
-            input_data, batch_sizes = (
-                sequences_to_batch(input_data, self.input_shape[1])
-            )
+            length = self.input_shape[1]
+            input_data, batch_sizes = sequences_to_batch(input_data, length)
             if targets is not None:
-                targets, _ = sequences_to_batch(targets, self.input_shape[1])
+                targets, _ = sequences_to_batch(targets, length)
             feed_dict.update({
                 self.holders['input']: input_data,
                 self.holders['batch_sizes']: batch_sizes
