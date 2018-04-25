@@ -169,14 +169,14 @@ class AutoEncoder(MultilayerPerceptron):
         prediction = super().predict(input_data)
         if len(prediction.shape) > 1:
             return self._split_metrics(prediction)
-        else:
-            encoder_pred = [None] * len(prediction)
-            decoder_pred = [None] * len(prediction)
-            for i, pred in enumerate(prediction):
-                enc_pred, dec_pred = self._split_metrics(pred)
-                encoder_pred[i] = enc_pred
-                decoder_pred[i] = dec_pred
-            return encoder_pred, decoder_pred
+        # Handle batched predictions case.
+        encoder_pred = [None] * len(prediction)
+        decoder_pred = [None] * len(prediction)
+        for i, pred in enumerate(prediction):
+            enc_pred, dec_pred = self._split_metrics(pred)
+            encoder_pred[i] = enc_pred
+            decoder_pred[i] = dec_pred
+        return encoder_pred, decoder_pred
 
     def score(self, input_data, targets):
         """Compute the root mean square prediction errors of the network.
