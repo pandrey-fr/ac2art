@@ -153,8 +153,10 @@ class DenseLayer(NeuralLayer):
         # Arguments serve modularity; pylint: disable=too-many-arguments
         # Check the input tensor's shape. If needed, flatten it.
         if len(input_data.shape) == 3:
-            batch_size = input_data.shape[1]
-            input_data = tf.reshape(input_data, (-1, input_data.shape[2]))
+            batch_size = input_data.shape[1].value
+            input_data = tf.reshape(
+                input_data, (-1, input_data.shape[2].value)
+            )
         elif len(input_data.shape) == 2:
             batch_size = None
         else:
@@ -175,9 +177,9 @@ class DenseLayer(NeuralLayer):
             bias=bias, name=name, pooling=dropout
         )
         # If needed, reshape the output as a batch of inputs.
-        if batch_size is not None:
+        if batch_size:
             self.output = tf.reshape(
-                self.output, (-1, batch_size, self.output.shape[1])
+                self.output, (-1, batch_size, self.output.shape[1].value)
             )
 
 
