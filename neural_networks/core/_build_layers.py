@@ -7,7 +7,7 @@ from collections import OrderedDict
 
 
 from neural_networks.components.filters import LowpassFilter, SignalFilter
-from neural_networks.components.layers import DenseLayer, NeuralLayer
+from neural_networks.components.dense_layer import DenseLayer
 from neural_networks.components.rnn import (
     AbstractRNN, RecurrentNeuralNetwork, BidirectionalRNN
 )
@@ -75,12 +75,12 @@ def build_layers_stack(
 def get_layer_class(layer_class):
     """Validate and return a layer class.
 
-    layer_class : either a subclass from AbstractRNN, NeuralLayer or
+    layer_class : either a subclass from AbstractRNN, DenseLayer or
                   SignalFilter, or the (short) name of one such class
     """
     if isinstance(layer_class, str):
         return get_object(layer_class, LAYER_CLASSES, 'layer class')
-    elif issubclass(layer_class, (AbstractRNN, NeuralLayer, SignalFilter)):
+    elif issubclass(layer_class, (AbstractRNN, DenseLayer, SignalFilter)):
         return layer_class
     else:
         raise TypeError("'layer_class' should be a str or an adequate class.")

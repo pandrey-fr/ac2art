@@ -13,8 +13,8 @@ from data.commons.enhance import batch_to_sequences, sequences_to_batch
 from neural_networks.core import (
     build_layers_stack, refine_signal, validate_layer_config
 )
+from neural_networks.components.dense_layer import DenseLayer
 from neural_networks.components.filters import SignalFilter
-from neural_networks.components.layers import NeuralLayer
 from neural_networks.components.rnn import AbstractRNN
 from utils import (
     check_positive_int, check_type_validity, instantiate, onetimemethod
@@ -118,11 +118,10 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def _neural_weights(self):
         """Return the weight and biases tensors of all neural layers."""
         return [
-            layer.weights if isinstance(layer, AbstractRNN) else (
-                (layer.weight, layer.bias) if layer.bias else layer.weight
-            )
-            for layer in self.layers.values()
-            if isinstance(layer, (AbstractRNN, NeuralLayer))
+            layer.weights if (
+                isinstance(layer, AbstractRNN) or layer.bias is None
+            ) else (layer.weights, layer.bias)
+            for layer in self.layers.values() if hasattr(layer, 'weights')
         ]
 
     @property

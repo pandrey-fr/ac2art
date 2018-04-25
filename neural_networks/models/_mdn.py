@@ -8,7 +8,7 @@ import numpy as np
 from neural_networks.components.gaussian import (
     gaussian_density, gaussian_mixture_density
 )
-from neural_networks.components.layers import DenseLayer
+from neural_networks.components.dense_layer import DenseLayer
 from neural_networks.core import DeepNeuralNetwork
 from neural_networks.models import MultilayerPerceptron
 from neural_networks.tf_utils import minimize_safely

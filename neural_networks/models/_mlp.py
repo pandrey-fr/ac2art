@@ -7,7 +7,7 @@ import inspect
 import tensorflow as tf
 import numpy as np
 
-from neural_networks.components.layers import DenseLayer
+from neural_networks.components.dense_layer import DenseLayer
 from neural_networks.core import DeepNeuralNetwork, build_rmse_readouts
 from neural_networks.tf_utils import minimize_safely, reduce_finite_mean
 from utils import raise_type_error, onetimemethod
