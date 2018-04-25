@@ -262,7 +262,8 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             raise ValueError("Unknown loss quantity: '%s'.")
         # Handle the likelihood metric case.
         # Compute sample-wise likelihoods.
-        scores = np.concatenate([
+        aggregate = np.array if len(self.input_shape) == 2 else np.concatenate
+        scores = aggregate([
             self.score(input_data, targets, loss='likelihood')
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])

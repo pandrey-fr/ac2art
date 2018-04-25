@@ -161,7 +161,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         of the network on the full set of samples.
         """
         # Compute sample-wise scores.
-        scores = np.concatenate([
+        aggregate = np.array if len(self.input_shape) == 2 else np.concatenate
+        scores = aggregate([
             np.square(self.score(input_data, targets))
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
