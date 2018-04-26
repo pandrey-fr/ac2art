@@ -155,7 +155,8 @@ def build_abxpy_callers(corpus):
             'context': [
                 phones[i - 1] + '_' + phones[i + 1]
                 for i in range(1, len(times))
-            ]
+            ],
+            'speaker': utterance.split('_')[0]
         }
 
     def make_itemfile(fileset=None):
@@ -169,7 +170,7 @@ def build_abxpy_callers(corpus):
             corpus, '' if fileset is None else fileset + '_'
         )
         output_file = os.path.join(abx_folder, name)
-        columns = ['#file', 'onset', 'offset', '#phone', 'context']
+        columns = ['#file', 'onset', 'offset', '#phone', 'context', 'speaker']
         with open(output_file, mode='w') as itemfile:
             itemfile.write(' '.join(columns) + '\n')
         for utterance in utterances:
@@ -179,22 +180,29 @@ def build_abxpy_callers(corpus):
                 sep=' ', mode='a', encoding='utf-8'
             )
 
-    def make_abx_task(fileset=None):
+    def make_abx_task(fileset=None, byspeaker=True):
         """Build a .abx ABXpy task file associated with {0} phones.
 
-        fileset : optional set name whose utterances to use (str)
+        fileset   : optional set name whose utterances to use (str)
+        byspeaker : whether to discriminate pairs from the same
+                    speaker only (bool, default True)
         """
         nonlocal abx_folder, corpus, make_itemfile
         # Build the item file if necessary.
-        name = '%s_%s' % (corpus, '' if fileset is None else fileset + '_')
-        item_file = os.path.join(abx_folder, '%sphones.item' % name)
+        task_name = corpus + '_' + ('' if fileset is None else fileset + '_')
+        item_file = os.path.join(abx_folder, '%sphones.item' % task_name)
         if not os.path.isfile(item_file):
             make_itemfile(fileset)
         # Run the ABXpy task module.
-        output = os.path.join(abx_folder, '%stask.abx' % name)
-        abxpy_task(item_file, output, on='phone', by='context')
+        output = os.path.join(
+            abx_folder, '%stask.abx' % (task_name + 'byspk_' * byspeaker)
+        )
+        within = 'context speaker' if byspeaker else 'context'
+        abxpy_task(item_file, output, on='phone', by=within)
 
-    def abx_from_features(features_filename, fileset=None, n_jobs=1):
+    def abx_from_features(
+            features_filename, fileset=None, byspeaker=True, n_jobs=1
+        ):
         """Run the ABXpy pipeline on a set of pre-extracted {0} features.
 
         features_file : name of a h5 file of {0} features created with
@@ -208,8 +216,8 @@ def build_abxpy_callers(corpus):
         check_type_validity(fileset, (str, type(None)), 'fileset')
         check_positive_int(n_jobs, 'n_jobs')
         # Declare paths to the files used.
-        task_file = '%s_%stask.abx' % (
-            corpus, '' if fileset is None else fileset + '_'
+        task_file = corpus + '_%s%stask.abx' % (
+            '' if fileset is None else fileset + '_', 'byspk_' * byspeaker
         )
         task_file = os.path.join(abx_folder, task_file)
         features_file = os.path.join(
@@ -222,7 +230,7 @@ def build_abxpy_callers(corpus):
             raise FileNotFoundError("No such file: '%s'." % features_file)
         # Build the ABX task file if necessary.
         if not os.path.isfile(task_file):
-            make_abx_task(fileset)
+            make_abx_task(fileset, byspeaker)
         # Run the ABXpy pipeline.
         abxpy_pipeline(features_file, task_file, output_file, n_jobs)
 
