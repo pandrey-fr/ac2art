@@ -9,7 +9,7 @@ from sphfile import SPHFile
 
 from data.commons.enhance import lowpass_filter
 from data.commons.loaders import EstTrack, Wav
-from data._prototype.raw import build_utterances_getter
+from data._prototype.raw import build_utterances_getter, build_voicing_loader
 from data.utils import CONSTANTS
 from utils import check_type_validity
 
@@ -24,13 +24,6 @@ def get_speaker_utterances(speaker):
     return sorted([
         name[:-4] for name in os.listdir(folder) if name.endswith('.wav')
     ])
-
-
-# Define function through wrappers; pylint: disable=invalid-name
-get_utterances_list = (
-    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mocha')
-)
-# pylint: enable=invalid-name
 
 
 def load_sphfile(path, sampling_rate, frame_size, hop_time):
@@ -139,3 +132,10 @@ def load_phone_labels(filename):
     ]
     # Trim the initial silent breathing labels when returning them.
     return labels[2:]
+
+
+# Define functions through wrappers; pylint: disable=invalid-name
+get_utterances_list = (
+    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mocha')
+)
+load_voicing = build_voicing_loader('mocha', 500, load_phone_labels)

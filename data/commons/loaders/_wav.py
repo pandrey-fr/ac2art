@@ -70,14 +70,14 @@ class Wav:
             for i in range(0, len(self.signal) + 1 - frame_size, hop_size)
         ])
 
-    def get_mfcc(self, n_coeff=12, static_only=False):
+    def get_mfcc(self, n_coeff=13, static_only=False):
         """Return Mel-frequency cepstral coefficients for each audio frame.
 
         n_coeff     : number of MFCC to return for each frame
-                      (positive int, default 12, maximum 40)
+                      (positive int, default 13, maximum 40)
         static_only : whether to return the sole static MFCC features
-                      instead of adding up the energy and compute the
-                      delta and deltadelta MFCC and energy features
+                      instead of replacing c_0 with the energy and compute
+                      the delta and deltadelta MFCC and energy features
                       (bool, default False)
 
         This implementation is based on that of 'librosa.features.mfcc',
@@ -106,7 +106,7 @@ class Wav:
             return mfcc
         # Otherwise, add the energy and the dynamic features to the return.
         return add_dynamic_features(
-            np.concatenate([mfcc, self.get_rms_energy()], axis=1)
+            np.concatenate([self.get_rms_energy(), mfcc[:, 1:]], axis=1)
         )
 
     def get_rms_energy(self):

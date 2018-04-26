@@ -6,6 +6,7 @@ import os
 
 
 from data.commons.loaders import EstTrack, Wav
+from data._prototype.raw import build_voicing_loader
 from data.utils import CONSTANTS
 from utils import check_type_validity
 
@@ -81,3 +82,7 @@ def load_phone_labels(filename):
             for row in file
         ]
     return [(float(label[0]), label[1]) for label in labels]
+
+
+# Define a function through a wrapper; pylint: disable=invalid-name
+load_voicing = build_voicing_loader('mngu0', 200, load_phone_labels)

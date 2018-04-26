@@ -3,5 +3,5 @@
 """Set of functions to load raw data from mngu0."""
 
 from ._loaders import (
-    get_utterances_list, load_ema, load_phone_labels, load_wav
+    get_utterances_list, load_ema, load_phone_labels, load_voicing, load_wav
 )

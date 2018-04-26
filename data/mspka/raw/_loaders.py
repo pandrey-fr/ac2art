@@ -7,7 +7,7 @@ import os
 import pandas as pd
 
 from data.commons.loaders import Wav
-from data._prototype.raw import build_utterances_getter
+from data._prototype.raw import build_utterances_getter, build_voicing_loader
 from data.utils import CONSTANTS
 from utils import alphanum_sort, check_type_validity
 
@@ -22,13 +22,6 @@ def get_speaker_utterances(speaker):
     return alphanum_sort([
         name[:-4] for name in os.listdir(folder) if name.endswith('.lab')
     ])
-
-
-# Define function through wrappers; pylint: disable=invalid-name
-get_utterances_list = (
-    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mspka')
-)
-# pylint: enable=invalid-name
 
 
 def load_wav(filename, frame_size=200, hop_time=2.5):
@@ -96,3 +89,10 @@ def load_phone_labels(filename):
             row.strip('\n').replace(' sil ', ' # ').split(' ') for row in file
         ]
     return [(float(label[1]), label[2]) for label in labels]
+
+
+# Define functions through wrappers; pylint: disable=invalid-name
+get_utterances_list = (
+    build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mspka')
+)
+load_voicing = build_voicing_loader('mspka', 400, load_phone_labels)
