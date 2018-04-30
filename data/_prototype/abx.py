@@ -47,7 +47,7 @@ def build_h5features_extractor(corpus):
         # Build the acoustic features loading function.
         if audio_features is not None:
             window = (
-                0 if inverter is None or inverter.input_shape[1] % 11 else 5
+                0 if inverter is None or inverter.input_shape[-1] % 11 else 5
             )
             load_audio = functools.partial(
                 load_acoustic, audio_type=audio_features, context_window=window
@@ -56,7 +56,8 @@ def build_h5features_extractor(corpus):
             if inverter is not None:
                 def invert_features(utterance):
                     """Return the features inverted from an utterance."""
-                    return inverter.predict(load_audio(utterance))
+                    pred = inverter.predict(load_audio(utterance))
+                    return pred if len(inverter.input_shape) == 2 else pred[0]
                 return invert_features
             elif ema_features is None:
                 return load_audio
