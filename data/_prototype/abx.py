@@ -210,6 +210,8 @@ def build_abxpy_callers(corpus):
                         the `extract_h5_features` function (str)
         fileset       : optional name of a fileset whose utterances'
                         features to use (str)
+        byspeaker     : whether to discriminate pairs from the same
+                        speaker only (bool, default True)
         n_jobs        : number of CPU cores to use (positive int, default 1)
         """
         nonlocal abx_folder, corpus, make_abx_task
@@ -217,14 +219,15 @@ def build_abxpy_callers(corpus):
         check_type_validity(fileset, (str, type(None)), 'fileset')
         check_positive_int(n_jobs, 'n_jobs')
         # Declare paths to the files used.
-        task_file = corpus + '_%s%stask.abx' % (
+        extension = (
             '' if fileset is None else fileset + '_', 'byspk_' * byspeaker
         )
+        task_file = corpus + '_%stask.abx' % extension
         task_file = os.path.join(abx_folder, task_file)
         features_file = os.path.join(
             abx_folder, features_filename + '.features'
         )
-        extension = '%s_abx.csv' % ('' if fileset is None else '_' + fileset)
+        extension += '_abx.csv'
         output_file = os.path.join(abx_folder, features_filename + extension)
         # Check that the features file exists.
         if not os.path.exists(features_file):

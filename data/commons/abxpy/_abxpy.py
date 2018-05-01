@@ -38,12 +38,12 @@ def abxpy_task(item_file, output, on, across=None, by=None):
     if isinstance(by, list):
         by = ' '.join(by)
     # Build the task.py call and run it.
-    task = os.path.join(ABXPY_FOLDER, 'task.py') + ' --on=' + on
+    task = os.path.join(ABXPY_FOLDER, 'task.py') + ' -o ' + on
     if across is not None:
-        task += ' --across=' + across
+        task += ' -a ' + across
     if by is not None:
-        task += ' --by=' + by
-    status = os.system(' '.join(('python2', task, item_file, output)))
+        task += ' -b ' + by
+    status = os.system(' '.join(('python2', task, '--', item_file, output)))
     if status != 0:
         raise RuntimeError("ABXpy task.py ended with status code %s." % status)
     print('ABXpy task module was successfully run.')
