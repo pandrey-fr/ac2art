@@ -7,17 +7,9 @@ import os
 import numpy as np
 
 from data.commons.enhance import add_dynamic_features, build_context_windows
-from data._prototype.normalize import _get_normfile_path
+from data._prototype.utils import _get_normfile_path, load_articulators_list
 from data.utils import CONSTANTS
 from utils import import_from_string
-
-
-def load_articulators_list(corpus):
-    """Load the list of articulators contained in a corpus's data."""
-    folder = os.path.join(CONSTANTS['%s_processed_folder' % corpus], 'ema')
-    with open(os.path.join(folder, 'articulators'), encoding='utf-8') as file:
-        articulators = [row.strip('\n') for row in file]
-    return articulators
 
 
 def build_setup_functions(corpus, default_byspeaker):
@@ -172,9 +164,10 @@ def build_file_loaders(corpus):
                 )
             cols_index = [articulators_list.index(key) for key in articulators]
             ema = ema[:, cols_index]
-        # Optionally add dynamic features. Return the articulatory data.
+        # Optionally add dynamic features.
         if use_dynamic:
             ema = add_dynamic_features(ema)
+        # Return the articulatory data.
         return ema
 
     # Adjust the functions' docstrings and return them.

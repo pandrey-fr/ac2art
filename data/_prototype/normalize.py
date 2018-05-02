@@ -6,16 +6,17 @@ import os
 
 import numpy as np
 
+from data._prototype.utils import _get_normfile_path, load_articulators_list
 from data.utils import CONSTANTS
 from utils import import_from_string
 
 
-def build_normalization_functions(dataset):
-    """Define and return functions to normalize datasets."""
+def build_normalization_functions(corpus):
+    """Define and return functions to normalize data corpora."""
     # Gather dataset-specific dependencies.
-    main_folder = CONSTANTS['%s_processed_folder' % dataset]
+    main_folder = CONSTANTS['%s_processed_folder' % corpus]
     get_utterances_list, speakers = import_from_string(
-        'data.%s.raw._loaders' % dataset, ['get_utterances_list', 'SPEAKERS']
+        'data.%s.raw._loaders' % corpus, ['get_utterances_list', 'SPEAKERS']
     )
 
     # Wrap the normalization parameters computing function.
@@ -75,15 +76,9 @@ def build_normalization_functions(dataset):
             )
 
     # Adjust the functions' docstrings and return them.
-    compute_moments.__doc__ = _compute_moments.__doc__.format(dataset)
-    normalize_files.__doc__ = normalize_files.__doc__.format(dataset)
+    compute_moments.__doc__ = _compute_moments.__doc__.format(corpus)
+    normalize_files.__doc__ = normalize_files.__doc__.format(corpus)
     return compute_moments, normalize_files
-
-
-def _get_normfile_path(main_folder, file_type, speaker):
-    """Get the path to a norm parameters file."""
-    name = file_type if speaker is None else '%s_%s' % (file_type, speaker)
-    return os.path.join(main_folder, 'norm_params', 'norm_%s.npy' % name)
 
 
 def _compute_moments(
