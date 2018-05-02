@@ -219,10 +219,10 @@ def build_abxpy_callers(corpus):
         check_type_validity(fileset, (str, type(None)), 'fileset')
         check_positive_int(n_jobs, 'n_jobs')
         # Declare paths to the files used.
-        extension = (
-            '' if fileset is None else fileset + '_', 'byspk_' * byspeaker
+        extension = '_' + (
+            ('' if fileset is None else fileset + '_') + 'byspk_' * byspeaker
         )
-        task_file = corpus + '_%stask.abx' % extension
+        task_file = corpus + extension + 'task.abx'
         task_file = os.path.join(abx_folder, task_file)
         features_file = os.path.join(
             abx_folder, features_filename + '.features'
