@@ -87,10 +87,8 @@ def build_extractor(corpus, initial_sampling_rate):
         ):
         """Extract acoustic and articulatory data of a given {0} utterance.
 
-        This function serves as a dependency for `extract_all_utterances`
-        and `extract_utterance_data`, avoiding to check again and again
-        the same arguments when using the former while ensuring arguments
-        are being checked when using the latter.
+        This function serves as a dependency for `extract_utterances_data`,
+        avoiding to check again and again the same arguments.
         """
         nonlocal initial_sampling_rate, new_folder
         nonlocal load_ema, load_phone_labels, load_wav
