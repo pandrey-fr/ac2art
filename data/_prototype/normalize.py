@@ -6,7 +6,7 @@ import os
 
 import numpy as np
 
-from data._prototype.utils import _get_normfile_path, load_articulators_list
+from data._prototype.utils import _get_normfile_path
 from data.utils import CONSTANTS
 from utils import import_from_string
 

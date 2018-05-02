@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from data.utils import CONSTANTS
+from utils import check_type_validity
 
 
 def build_utterances_getter(get_speaker_utterances, speakers, corpus):
@@ -57,3 +58,45 @@ def build_voicing_loader(corpus, initial_sr, load_phone_labels):
     # Adjust the function's docstring and return it.
     load_voicing.__doc__ = load_voicing.__doc__.format(corpus, initial_sr)
     return load_voicing
+
+
+def build_ema_loaders(corpus, initial_sr, load_ema_base, load_phone_labels):
+    """Define and return functions to load raw EMA and binary voicing data.
+
+    corpus            : name of the corpus (str)
+    initial_sr        : initial sampling_rate of the corpus' EMA data, in Hz
+    load_ema_base     : base (corpus-specific) EMA data loading function,
+                        expecting an utterance's name and returning raw EMA
+                        data (2-D numpy.ndarray) and the list of column names
+    load_phone_labels : corpus-specific phone labels loading function
+    """
+    # Define the auxiliary binary voicing data loader.
+    load_voicing = build_voicing_loader(corpus, initial_sr, load_phone_labels)
+
+    # Define the corpus-specific raw EMA data loading function.
+    def load_ema(filename, columns_to_keep=None):
+        """Load data from a {0} EMA (.ema) file.
+
+        filename        : utterance whose raw EMA data to load (str)
+        columns_to_keep : optional list of columns to keep
+
+        Return a 2-D numpy.ndarray where each row represents a sample
+        (recorded at {1} Hz) and each column is represents a 1-D coordinate
+        of an articulator, in centimeter. Also return the list of column names.
+        """
+        nonlocal load_ema_base
+        check_type_validity(
+            columns_to_keep, (list, type(None)), 'columns_to_keep'
+        )
+        ema_data, column_names = load_ema_base(filename, columns_to_keep)
+        # Optionally select the articulatory data points to keep.
+        if columns_to_keep is not None:
+            cols_index = [column_names.index(col) for col in columns_to_keep]
+            ema_data = ema_data[:, cols_index]
+            column_names = columns_to_keep
+        # Return the EMA data and the list of columns names.
+        return ema_data, column_names
+
+    # Adjust the previous function's docstring. Return both functions.
+    load_ema.__doc__ = load_ema.__doc__.format(corpus, initial_sr)
+    return load_ema, load_voicing

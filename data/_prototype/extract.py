@@ -52,7 +52,7 @@ def build_arguments_checker(corpus, default_articulators):
                     "Unknown audio representation(s): %s." % invalid
                 )
         # Build necessary folders to store the processed data.
-        for name in audio_forms + ['ema']:
+        for name in audio_forms + ['ema', 'voicing']:
             dirname = os.path.join(new_folder, name)
             if not os.path.isdir(dirname):
                 os.makedirs(dirname)
@@ -76,13 +76,53 @@ def build_extractor(corpus, initial_sampling_rate):
     """
     # Load the output path and dependency data loading functions.
     new_folder = CONSTANTS['%s_processed_folder' % corpus]
-    load_ema, load_phone_labels, load_wav = import_from_string(
+    load_ema, load_phone_labels, load_voicing, load_wav = import_from_string(
         module='data.%s.raw._loaders' % corpus,
-        elements=['load_ema', 'load_phone_labels', 'load_wav']
+        elements=['load_ema', 'load_phone_labels', 'load_voicing', 'load_wav']
     )
 
+    def get_boundaries(utterance, sampling_rate):
+        """Return frames index to use so as to trim edge silences."""
+        nonlocal load_phone_labels
+        # Load phone labels and gather edge silences' timecodes.
+        labels = load_phone_labels(utterance)
+        start_time = labels[0][0] if labels[0][1] == '#' else 0
+        end_time = labels[-2][0] if labels[-1][1] == '#' else labels[-1][0]
+        # Compute and return associated frame indexes.
+        start_frame = int(np.floor(start_time * sampling_rate))
+        end_frame = int(np.ceil(end_time * sampling_rate))
+        return start_frame, end_frame
+
+    def extract_ema(
+            utterance, start_frame, end_frame, sampling_rate, articulators
+        ):
+        """Extract the EMA data associated with an utterance."""
+        nonlocal initial_sampling_rate, load_ema, new_folder
+        # Load EMA data and interpolate NaN values using cubic splines.
+        ema, _ = load_ema(utterance, articulators)
+        ema = np.concatenate([
+            interpolate_missing_values(data_column).reshape(-1, 1)
+            for data_column in np.transpose(ema)
+        ], axis=1)
+        # Optionally resample the EMA data.
+        if sampling_rate != initial_sampling_rate:
+            ema = resampy.resample(
+                ema, sr_orig=initial_sampling_rate,
+                sr_new=sampling_rate, axis=0
+            )
+        # Trim edge silences from EMA data and save it.
+        ema = ema[start_frame:end_frame]
+        np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
+
+    def extract_voicing(utterance, start_frame, end_frame, sampling_rate):
+        """Generate and save binary voicing data based on tracks labelling."""
+        nonlocal load_voicing, new_folder
+        voicing = load_voicing(utterance, sampling_rate)[start_frame:end_frame]
+        path = os.path.join(new_folder, 'voicing', utterance + '_voicing.npy')
+        np.save(path, voicing)
+
     def extract_data(
-            utterance, audio_forms, n_coeff, articulators_list,
+            utterance, audio_forms, n_coeff, articulators,
             ema_sampling_rate, audio_frames_size
         ):
         """Extract acoustic and articulatory data of a given {0} utterance.
@@ -90,45 +130,26 @@ def build_extractor(corpus, initial_sampling_rate):
         This function serves as a dependency for `extract_utterances_data`,
         avoiding to check again and again the same arguments.
         """
-        nonlocal initial_sampling_rate, new_folder
-        nonlocal load_ema, load_phone_labels, load_wav
-        # Load phone labels and compute frames index so as to trim silences.
-        labels = load_phone_labels(utterance)
-        start_frame = int(np.floor(
-            (labels[0][0] if labels[0][1] == '#' else 0) * ema_sampling_rate
-        ))
-        end_frame = int(np.ceil(
-            (labels[-2][0] if labels[-1][1] == '#' else labels[-1][0])
-            * ema_sampling_rate
-        ))
-        # Load EMA data and interpolate NaN values using cubic splines.
-        ema, _ = load_ema(utterance, articulators_list)
-        ema = np.concatenate([
-            interpolate_missing_values(data_column).reshape(-1, 1)
-            for data_column in np.transpose(ema)
-        ], axis=1)
-        # Optionally resample the EMA data.
-        if ema_sampling_rate != initial_sampling_rate:
-            ema = resampy.resample(
-                ema, sr_orig=initial_sampling_rate, sr_new=ema_sampling_rate,
-                axis=0
-            )
-        # Trim edge silences from EMA data and save it.
-        ema = ema[start_frame:end_frame]
-        np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
+        nonlocal load_wav, new_folder
+        # Compute frames index to trim edge silences.
+        start_frame, end_frame = get_boundaries(utterance, ema_sampling_rate)
+        # Run EMA and voicing data extraction.
+        extract_ema(
+            utterance, start_frame, end_frame, ema_sampling_rate, articulators
+        )
+        extract_voicing(utterance, start_frame, end_frame, ema_sampling_rate)
         # Load the audio waveform data, structuring it into frames.
         wav = load_wav(
             utterance, audio_frames_size, hop_time=1000 / ema_sampling_rate
         )
         # Compute each audio features set, trim its edge silences and save it.
         for name in audio_forms:
-            audio = (
-                getattr(wav, 'get_' + name)(n_coeff, static_only=False)
-            )
+            audio = getattr(wav, 'get_' + name)(n_coeff, static_only=False)
             audio = audio[start_frame:end_frame]
             path = os.path.join(new_folder, name, utterance + '_%s.npy' % name)
             np.save(path, audio)
-    # Adjust the functions's docstring and return it.
+
+    # Adjust the previous functions's docstring and return it.
     extract_data.__doc__ = extract_data.__doc__.format(corpus)
     return extract_data
 

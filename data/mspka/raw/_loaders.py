@@ -7,9 +7,9 @@ import os
 import pandas as pd
 
 from data.commons.loaders import Wav
-from data._prototype.raw import build_utterances_getter, build_voicing_loader
+from data._prototype.raw import build_utterances_getter, build_ema_loaders
 from data.utils import CONSTANTS
-from utils import alphanum_sort, check_type_validity
+from utils import alphanum_sort
 
 
 RAW_FOLDER = CONSTANTS['mspka_raw_folder']
@@ -43,17 +43,9 @@ def load_wav(filename, frame_size=200, hop_time=2.5):
     return Wav(path, 22050, frame_size, hop_time)
 
 
-def load_ema(filename, columns_to_keep=None):
-    """Load data from a mspka EMA (.ema) file.
-
-    filename        : name of the utterance whose raw EMA data to load (str)
-    columns_to_keep : optional list of columns to keep
-
-    Return a 2-D numpy.ndarray where each row represents a sample (recorded
-    at 400Hz) and each column is represents a 1-D coordinate of an articulator,
-    in centimeters. Also return the list of column names.
-    """
-    # Import data from file.
+def load_ema_base(filename, columns_to_keep=None):
+    """Load data from a mspka EMA (.ema) file."""
+    # Unused argument kept for API compliance; pylint: disable=unused-argument
     speaker = filename.split('_')[0]
     path = os.path.join(
         RAW_FOLDER, speaker + '_1.0.0', 'ema_1.0.0', filename + '.ema'
@@ -64,13 +56,6 @@ def load_ema(filename, columns_to_keep=None):
         'ui_y', 'ui_z', 'li_x', 'li_y', 'li_z', 'tb_x', 'tb_y',
         'tb_z', 'td_x', 'td_y', 'td_z', 'tt_x', 'tt_y', 'tt_z'
     ]
-    # Optionally select the data columns kept.
-    check_type_validity(columns_to_keep, (list, type(None)), 'columns_to_keep')
-    if columns_to_keep is not None:
-        cols_index = [column_names.index(col) for col in columns_to_keep]
-        ema_data = ema_data[:, cols_index]
-        column_names = columns_to_keep
-    # Return the EMA data and a list of columns names.
     return ema_data, column_names
 
 
@@ -95,4 +80,6 @@ def load_phone_labels(filename):
 get_utterances_list = (
     build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mspka')
 )
-load_voicing = build_voicing_loader('mspka', 400, load_phone_labels)
+load_ema, load_voicing = build_ema_loaders(
+    'mspka', 400, load_ema_base, load_phone_labels
+)

@@ -6,10 +6,8 @@ import os
 
 
 from data.commons.loaders import EstTrack, Wav
-from data._prototype.raw import build_voicing_loader
+from data._prototype.raw import build_ema_loaders
 from data.utils import CONSTANTS
-from utils import check_type_validity
-
 
 RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
 SPEAKERS = [None]
@@ -41,29 +39,13 @@ def load_wav(filename, frame_size=200, hop_time=5):
     return Wav(path, 16000, frame_size, hop_time)
 
 
-def load_ema(filename, columns_to_keep=None):
-    """Load data from a mngu0 EMA (.ema) file.
-
-    filename        : name of the utterance whose raw EMA data to load (str)
-    columns_to_keep : optional list of columns to keep
-
-    Return a 2-D numpy.ndarray where each row represents a sample (recorded
-    at 200Hz) and each column is represents a 1-D coordinate of an articulator,
-    in centimeter. Also return the list of column names.
-    """
-    # Import data from file.
+def load_ema_base(filename, columns_to_keep=None):
+    """Load data from a mngu0 EMA (.ema) file."""
+    # Unused argument kept for API compliance; pylint: disable=unused-argument
     path = os.path.join(RAW_FOLDER, 'ema_basic_data/', filename + '.ema')
     track = EstTrack(path)
-    # Optionally select the data columns kept.
-    check_type_validity(columns_to_keep, (list, type(None)), 'columns_to_keep')
+    ema_data = track.data
     column_names = list(track.column_names.values())
-    if columns_to_keep is not None:
-        cols_index = [column_names.index(col) for col in columns_to_keep]
-        ema_data = track.data[:, cols_index]
-        column_names = columns_to_keep
-    else:
-        ema_data = track.data
-    # Return the EMA data and a list of columns names.
     return ema_data, column_names
 
 
@@ -85,4 +67,6 @@ def load_phone_labels(filename):
 
 
 # Define a function through a wrapper; pylint: disable=invalid-name
-load_voicing = build_voicing_loader('mngu0', 200, load_phone_labels)
+load_ema, load_voicing = build_ema_loaders(
+    'mngu0', 200, load_ema_base, load_phone_labels
+)

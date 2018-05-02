@@ -9,9 +9,8 @@ from sphfile import SPHFile
 
 from data.commons.enhance import lowpass_filter
 from data.commons.loaders import EstTrack, Wav
-from data._prototype.raw import build_utterances_getter, build_voicing_loader
+from data._prototype.raw import build_ema_loaders, build_utterances_getter
 from data.utils import CONSTANTS
-from utils import check_type_validity
 
 
 RAW_FOLDER = CONSTANTS['mocha_raw_folder']
@@ -71,46 +70,26 @@ def load_larynx(filename):
     return load_sphfile(path, 16000, 200, 2).get_rms_energy()
 
 
-def load_ema(filename, columns_to_keep=None):
-    """Load articulatory data associated with a mocha-timit utterance.
-
-    filename        : name of the utterance whose raw EMA data to load (str)
-    columns_to_keep : optional list of columns to keep
-
-    Return a 2-D numpy.ndarray where each row represents a sample (recorded
-    at 500Hz) and each column is represents a 1-D coordinate of an articulator,
-    in centimeter. Also return the list of column names.
-    """
+def load_ema_base(filename, columns_to_keep=None):
+    """Load articulatory data associated with a mocha-timit utterance."""
     # Import data from file.
     speaker = filename.split('_')[0]
     path = os.path.join(RAW_FOLDER, speaker, filename + '.ema')
     track = EstTrack(path)
-    # Optionally select the data columns kept.
-    check_type_validity(columns_to_keep, (list, type(None)), 'columns_to_keep')
+    ema_data = track.data / 1000
     column_names = list(track.column_names.values())
-    if columns_to_keep is None:
-        ema_data = track.data / 1000
-        column_names.append('larynx')
-    else:
-        cols_index = [
-            column_names.index(col) for col in columns_to_keep
-            if col != 'larynx'
-        ]
-        column_names = columns_to_keep
-        ema_data = track.data[:, cols_index] / 1000
-    # Optionally add the laryngograph data to the articulatory data.
-    # NOTE: EMA tracks last longer than laryngograph (and audio) ones,
-    # thus cutting its final edge causes no issue.
-    if 'larynx' in column_names:
+    # Optionally add laryngograph data.
+    if columns_to_keep is None or 'larynx' in columns_to_keep:
         larynx = load_larynx(filename) * 10
         if len(larynx) > len(ema_data):
             larynx = larynx[:len(ema_data)]
         else:
             ema_data = ema_data[:len(larynx)]
         ema_data = np.concatenate([ema_data, larynx], axis=1)
-    # Smooth the signal, as recordings are pretty bad.
+        column_names.append('larynx')
+    # Smooth the data, as recordings are pretty bad.
     ema_data = lowpass_filter(ema_data, cutoff=20, sample_rate=500)
-    # Return the EMA data and a list of columns names.
+    # Return the EMA data and the list of columns names.
     return ema_data, column_names
 
 
@@ -138,4 +117,6 @@ def load_phone_labels(filename):
 get_utterances_list = (
     build_utterances_getter(get_speaker_utterances, SPEAKERS, corpus='mocha')
 )
-load_voicing = build_voicing_loader('mocha', 500, load_phone_labels)
+load_ema, load_voicing = build_ema_loaders(
+    'mocha', 500, load_ema_base, load_phone_labels
+)

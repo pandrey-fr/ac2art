@@ -19,6 +19,7 @@ def build_setup_functions(corpus, default_byspeaker):
     loading_setup = {
         'audio_type': 'mfcc_stds' + extension,
         'articulators': 'all',
+        'binary_voicing': True,
         'context_window': 5,
         'dynamic_ema': True,
         'ema_norm': 'mean' + extension,
@@ -27,8 +28,9 @@ def build_setup_functions(corpus, default_byspeaker):
     # Define functions to manipulate the former dict.
 
     def change_loading_setup(
-            audio_type=None, articulators=None, context_window=None,
-            dynamic_ema=None, ema_norm=None, zero_padding=None
+            audio_type=None, articulators=None, binary_voicing=None,
+            context_window=None, dynamic_ema=None, ema_norm=None,
+            zero_padding=None
         ):
         """Update the default arguments used when importing {0} data.
 
@@ -39,6 +41,7 @@ def build_setup_functions(corpus, default_byspeaker):
         audio_type     : name of the audio features to use,
                          including normalization indications (str)
         articulators   : list of names of articulators to load
+        binary_voicing : whether to add binary voicing data to EMA data (bool)
         context_window : half-size of the context window of acoustic inputs
                          (set to zero to use single audio frames as input)
         dynamic_ema    : whether to use dynamic articulatory features
@@ -52,6 +55,7 @@ def build_setup_functions(corpus, default_byspeaker):
 
         To see the current value of the parameters, use `get_loading_setup`.
         """
+        # Arguments serve modularity; pylint: disable=too-many-arguments
         # Broadly catch all arguments; pylint: disable=unused-argument
         kwargs = locals()
         nonlocal loading_setup
@@ -133,12 +137,16 @@ def build_file_loaders(corpus):
             )
         return acoustic
 
-    def load_ema(name, norm_type='', use_dynamic=True, articulators=None):
+    def load_ema(
+            name, norm_type='', use_dynamic=True, add_voicing=True,
+            articulators=None
+        ):
         """Load the articulatory data associated with an utterance from {0}.
 
         name         : name of the utterance whose data to load (str)
         norm_type    : optional type of normalization to use (str)
         use_dynamic  : whether to return dynamic features (bool, default True)
+        add_voicing  : whether to add binary voicing data (bool, default True)
         articulators : optional list of articulators to load
         """
         nonlocal corpus, data_folder, get_norm_parameters
@@ -167,6 +175,12 @@ def build_file_loaders(corpus):
         # Optionally add dynamic features.
         if use_dynamic:
             ema = add_dynamic_features(ema)
+        # Optionally add binary voicing data.
+        if add_voicing:
+            voicing = np.load(
+                os.path.join(data_folder, 'voicing', name + '_voicing.npy')
+            )
+            ema = np.concatenate([ema, voicing], axis=1)
         # Return the articulatory data.
         return ema
 
@@ -206,7 +220,8 @@ def build_loading_functions(corpus, default_byspeaker):
             args['zero_padding']
         )
         ema = load_ema(
-            name, args['ema_norm'], args['dynamic_ema'], args['articulators']
+            name, args['ema_norm'], args['dynamic_ema'],
+            args['binary_voicing'], args['articulators']
         )
         if args['context_window'] and not args['zero_padding']:
             ema = ema[args['context_window']:-args['context_window']]
