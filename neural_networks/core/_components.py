@@ -7,7 +7,41 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.core import build_layers_stack
-from neural_networks.tf_utils import add_dynamic_features, run_along_first_dim
+from neural_networks.tf_utils import (
+    add_dynamic_features, batch_tensor_mean, run_along_first_dim
+)
+
+
+def build_binary_classif_readouts(pred_proba, labels, batch_sizes=None):
+    """Return a dict of tensors recording binary classification metrics.
+
+    pred_proba  : tensor of predicted probabilities
+    labels      : tensor of true labels
+    batch_sizes : optional tensor of true sequences length,
+                  for batched (or fixed-size) inputs
+
+    Return a dict recording predicted probabilites, predicted
+    labels, cross-entropy metrics and the overall accuracy.
+    """
+    # Compute unit-wise prediction, correctness and entropy.
+    prediction = tf.round(pred_proba)
+    correctness = tf.cast(tf.equal(prediction, labels), tf.float32)
+    entropy = - 1 * (
+        labels * tf.log(pred_proba + 1e-32)
+        + (1 - labels) * tf.log(1 - pred_proba + 1e-32)
+    )
+    # Compute accuracy and cross_entropy scores.
+    if batch_sizes is None:
+        accuracy = tf.reduce_mean(correctness, axis=-2)
+        cross_entropy = tf.reduce_mean(entropy, axis=-2)
+    else:
+        accuracy = batch_tensor_mean(correctness, batch_sizes)
+        cross_entropy = batch_tensor_mean(entropy, batch_sizes)
+    # Return a dict of computed metrics.
+    return {
+        'accuracy': accuracy, 'cross_entropy': cross_entropy,
+        'predicted_proba': pred_proba, 'prediction': prediction
+    }
 
 
 def build_dynamic_weights_matrix(size, window, complete=False):
@@ -82,20 +116,12 @@ def build_rmse_readouts(prediction, targets, batch_sizes=None):
     Return a dict recording the initial prediction Tensor, the Tensor of
     prediction errors and that of the root mean square prediction error.
     """
-    if batch_sizes is None:
-        errors = prediction - targets
-        rmse = tf.sqrt(tf.reduce_mean(tf.square(errors), axis=-2))
-    else:
-        mask = tf.sequence_mask(
-            batch_sizes, maxlen=prediction.shape[1].value, dtype=tf.float32
-        )
-        for _ in range(len(mask.shape), len(prediction.shape)):
-            mask = tf.expand_dims(mask, -1)
-        errors = (prediction - targets) * mask
-        rmse = tf.sqrt(
-            tf.reduce_sum(tf.square(errors), axis=-2)
-            / tf.reduce_sum(mask, axis=1)
-        )
+    errors = prediction - targets
+    mean_square_errors = (
+        tf.reduce_mean(tf.square(errors), axis=-2) if batch_sizes is None
+        else batch_tensor_mean(tf.square(errors), batch_sizes)
+    )
+    rmse = tf.sqrt(mean_square_errors)
     return {'prediction': prediction, 'errors': errors, 'rmse': rmse}
 
 

@@ -36,7 +36,7 @@ class AutoEncoder(MultilayerPerceptron):
                          or [n_batches, max_length, input_size],
                          where the first may be variable (None)
                          (tuple, list, tensorflow.TensorShape)
-        n_targets      : number of real-valued targets to predict,
+        n_targets      : number of targets to predict,
                          notwithstanding dynamic features
         encoder_config : list of tuples specifying the encoder's architecture
         decoder_config : list of tuples specifying the decoder's architecture
@@ -80,7 +80,7 @@ class AutoEncoder(MultilayerPerceptron):
         # Initialize the auto-encoder network.
         super().__init__(
             input_shape, n_targets, layers_config, use_dynamic=use_dynamic,
-            optimizer=optimizer
+            binary_tracks=False, optimizer=optimizer
         )
         # Record additionnal initialization arguments.
         self._init_arguments['encoder_config'] = encoder_config

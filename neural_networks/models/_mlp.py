@@ -8,7 +8,9 @@ import tensorflow as tf
 import numpy as np
 
 from neural_networks.components.dense_layer import DenseLayer
-from neural_networks.core import DeepNeuralNetwork, build_rmse_readouts
+from neural_networks.core import (
+    DeepNeuralNetwork, build_binary_classif_readouts, build_rmse_readouts
+)
 from neural_networks.tf_utils import minimize_safely, reduce_finite_mean
 from utils import raise_type_error, onetimemethod
 
@@ -18,7 +20,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
 
     def __init__(
             self, input_shape, n_targets, layers_config, top_filter=None,
-            use_dynamic=True, norm_params=None, optimizer=None
+            use_dynamic=True, binary_tracks=None, norm_params=None,
+            optimizer=None
         ):
         """Instantiate a multilayer perceptron for regression tasks.
 
@@ -27,7 +30,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                         or [n_batches, max_length, input_size],
                         where the first may be variable (None)
                         (tuple, list, tensorflow.TensorShape)
-        n_targets     : number of real-valued targets to predict
+        n_targets     : number of targets to predict,
+                        notwithstanding dynamic features
         layers_config : list of tuples specifying a layer configuration,
                         made of a layer class (or short name), a number
                         of units (or a cutoff frequency for filters) and
@@ -36,6 +40,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
                         on top of the network's raw prediction
         use_dynamic   : whether to produce dynamic features and use them
                         when training the model (bool, default True)
+        binary_tracks : optional list of targets which are binary-valued
+                        (and should therefore not have delta counterparts)
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         optimizer     : tensorflow.train.Optimizer instance (by default,
@@ -44,7 +50,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Arguments serve modularity; pylint: disable=too-many-arguments
         super().__init__(
             input_shape, n_targets, layers_config, top_filter,
-            use_dynamic, norm_params, optimizer=optimizer
+            use_dynamic, binary_tracks, norm_params, optimizer=optimizer
         )
 
     def _adjust_init_arguments_for_saving(self):
@@ -96,10 +102,17 @@ class MultilayerPerceptron(DeepNeuralNetwork):
     @onetimemethod
     def _build_readout_layer(self):
         """Build the readout layer of the multilayer perceptron."""
-        # Build the readout layer.
+        hidden_output = self._top_layer.output
+        n_binary = len(self.binary_tracks) if self.binary_tracks else 0
+        # Build the readout layer for continuous target points.
         self.layers['readout_layer'] = DenseLayer(
-            self._top_layer.output, self.n_targets, 'identity'
+            hidden_output, self.n_targets - n_binary, 'identity'
         )
+        # If any, build the readout layer for binary target points.
+        if n_binary:
+            self.layers['readout_layer_binary'] = DenseLayer(
+                hidden_output, n_binary, 'sigmoid'
+            )
 
     @onetimemethod
     def _build_initial_prediction(self):
@@ -110,15 +123,48 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         complex predictions.
         """
         self.readouts['raw_prediction'] = self.layers['readout_layer'].output
+        if self.binary_tracks is not None:
+            binary_proba = self.layers['readout_layer_binary'].output
+            self.readouts['_binary_probability'] = binary_proba
+            self.readouts['_binary_prediction'] = tf.round(binary_proba)
 
     @onetimemethod
     def _build_error_readouts(self):
         """Build error readouts of the network's prediction."""
-        readouts = build_rmse_readouts(
-            self.readouts['prediction'], self.holders['targets'],
-            self.holders.get('batch_sizes')
-        )
-        self.readouts.update(readouts)
+        if self.binary_tracks is None:
+            rmse_readouts = build_rmse_readouts(
+                self.readouts['prediction'], self.holders['targets'],
+                self.holders.get('batch_sizes')
+            )
+            self.readouts.update(rmse_readouts)
+        else:
+            # Build the readouts associated with continuous targets.
+            continuous_targets = tf.concat([
+                self.holders['targets'][..., i:i+1]
+                for i in range(self.holders['targets'].shape[-1].value)
+                if i not in self.binary_tracks
+            ], axis=-1)
+            rmse_readouts = build_rmse_readouts(
+                self.readouts['_continuous_prediction'], continuous_targets,
+                self.holders.get('batch_sizes')
+            )
+            rmse_readouts.pop('prediction')
+            self.readouts.update(rmse_readouts)
+            # Build the readouts associated with binary-valued targets.
+            binary_targets = tf.concat([
+                self.holders['targets'][..., i:i+1] for i in self.binary_tracks
+            ], axis=-1)
+            accuracy_readouts = build_binary_classif_readouts(
+                self.readouts['_binary_probability'], binary_targets,
+                self.holders.get('batch_sizes')
+            )
+            # Record and interlace error metrics of both kinds of targets.
+            self.readouts['_rmse'] = self.readouts.pop('rmse')
+            for key in ('accuracy', 'cross_entropy'):
+                self.readouts['_' + key] = accuracy_readouts[key]
+            self.readouts['rmse'] = self._interlace(
+                self.readouts['_rmse'], self.readouts['_cross_entropy']
+            )
 
     @onetimemethod
     def _build_training_function(self):
@@ -143,6 +189,8 @@ class MultilayerPerceptron(DeepNeuralNetwork):
 
         input_data : input data sample to evalute the model on which
         targets    : true targets associated with the input dataset
+
+        For binary-valued targets, cross-entropy is returned.
         """
         feed_dict = self.get_feed_dict(input_data, targets)
         return self.readouts['rmse'].eval(feed_dict, self.session)

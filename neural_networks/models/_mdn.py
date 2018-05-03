@@ -41,7 +41,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
 
         input_shape   : shape of the 2-D input data fed to the network,
                         with the number of samples as first component
-        n_targets     : number of real-valued targets to predict
+        n_targets     : number of targets to predict
         n_components  : number of mixture components to model
         layers_config : list of tuples specifying a layer configuration,
                         made of a layer class (or short name), a number
@@ -60,8 +60,23 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         self.n_parameters = None
         DeepNeuralNetwork.__init__(
             self, input_shape, n_targets, layers_config, top_filter,
-            False, norm_params, optimizer=optimizer, n_components=n_components
+            use_dynamic=False, binary_tracks=None, norm_params=norm_params,
+            optimizer=optimizer, n_components=n_components
         )
+
+    def _adjust_init_arguments_for_saving(self):
+        """Adjust `_init_arguments` attribute before dumping the model.
+
+        Return a tuple of two dict. The first is a copy of the keyword
+        arguments used at initialization, containing only values which
+        numpy.save can serialize. The second associates to non-serializable
+        arguments' names a dict enabling their (recursive) reconstruction
+        using the `neural_networks.utils.instantiate` function.
+        """
+        init_arguments, rebuild = super()._adjust_init_arguments_for_saving()
+        init_arguments.pop('use_dynamic')
+        init_arguments.pop('binary_tracks')
+        return init_arguments, rebuild
 
     @onetimemethod
     def _validate_args(self):

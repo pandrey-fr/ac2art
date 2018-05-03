@@ -32,7 +32,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
 
     def __init__(
             self, input_shape, n_targets, layers_config, top_filter=None,
-            use_dynamic=True, norm_params=None, **kwargs
+            use_dynamic=True, binary_tracks=None, norm_params=None, **kwargs
         ):
         """Initialize the neural network.
 
@@ -41,7 +41,7 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                         or [n_batches, max_length, input_size],
                         where the last axis must be fixed (non-None)
                         (tuple, list, tensorflow.TensorShape)
-        n_targets     : number of real-valued targets to predict,
+        n_targets     : number of targets to predict,
                         notwithstanding dynamic features
         layers_config : list of tuples specifying a layer configuration,
                         made of a layer class (or short name), a number
@@ -51,6 +51,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                         on top of the network's raw prediction
         use_dynamic   : whether to produce dynamic features and use them
                         when training the model (bool, default True)
+        binary_tracks : optional list of targets which are binary-valued
+                        (and should therefore not have delta counterparts)
         norm_params   : optional normalization parameters of the targets
                         (np.ndarray)
         """
@@ -59,7 +61,8 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         self._init_arguments = {
             'input_shape': input_shape, 'n_targets': n_targets,
             'layers_config': layers_config, 'top_filter': top_filter,
-            'use_dynamic': use_dynamic, 'norm_params': norm_params
+            'use_dynamic': use_dynamic, 'binary_tracks': binary_tracks,
+            'norm_params': norm_params
         }
         self._init_arguments.update(kwargs)
         self._validate_args()
@@ -172,6 +175,22 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
         """Return the layer on top of the network's architecture."""
         return self.layers[list(self.layers.keys())[-1]]
 
+    def _interlace(self, main_tensor, binary_tensor):
+        """Interlace tensors associated with continuous and binary targets."""
+        if self.binary_tracks is None:
+            raise RuntimeError(
+                "'_interlace' method was called, but "
+                + "'self.binary_tracks' is None."
+            )
+        start = 0
+        stacks = []
+        for i, end in enumerate(self.binary_tracks):
+            stacks.append(main_tensor[..., start:end])
+            stacks.append(binary_tensor[..., i:i+1])
+            start = end
+        stacks.append(main_tensor[..., start:])
+        return tf.concat(stacks, axis=-1)
+
     @onetimemethod
     def _validate_args(self):
         """Process the initialization arguments of the instance."""
@@ -192,8 +211,25 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             self._init_arguments['top_filter'] = (
                 validate_layer_config(self.top_filter)
             )
-        # Validate the model's number of targets.
+        # Validate the model's number of targets and their specification.
         check_positive_int(self.n_targets, 'n_targets')
+        check_type_validity(self.use_dynamic, bool, 'use_dynamic')
+        check_type_validity(
+            self.binary_tracks, (list, type(None)), 'binary_tracks'
+        )
+        if self.binary_tracks is not None:
+            if self.binary_tracks:
+                invalid = not all(
+                    isinstance(track, int) and 0 <= track < self.n_targets
+                    for track in self.binary_tracks
+                )
+                if invalid:
+                    raise TypeError(
+                        "'binary_tracks' should be a list of int in [0, %s]"
+                        % (self.n_targets - 1)
+                    )
+            else:
+                self._init_arguments['binary_tracks'] = None
         # Validate the model's normalization parameters.
         norm_params = self.norm_params
         check_type_validity(
@@ -204,14 +240,15 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
                 "Wrong 'norm_params' shape: %s instead of (%s,)"
                 % (norm_params.shape, self.n_targets)
             )
-        # Validate the use_dynamic argument.
-        check_type_validity(self.use_dynamic, bool, 'use_dynamic')
 
     @onetimemethod
     def _build_placeholders(self):
         """Build the network's placeholders."""
         self.holders['input'] = tf.placeholder(tf.float32, self.input_shape)
-        n_targets = self.n_targets * (1 + 2 * self.use_dynamic)
+        n_targets = self.n_targets
+        if self.use_dynamic:
+            n_binary = len(self.binary_tracks) if self.binary_tracks else 0
+            n_targets += 2 * (self.n_targets - n_binary)
         self.holders['targets'] = tf.placeholder(
             tf.float32, [*self.input_shape[:-1], n_targets]
         )
@@ -253,19 +290,31 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
     def _build_initial_prediction(self):
         """Build the network's initial prediction.
 
-        This method should add a 'raw_prediction'
-        Tensor to the `readouts` dict attribute.
+        This method should add a 'raw_prediction' Tensor to the `readouts`
+        dict attribute, plus a '_binary_prediction' one if `binary_tracks`
+        attribute is not None.
         """
         return NotImplemented
 
     @onetimemethod
     def _build_refined_prediction(self):
         """Refine the network's initial prediction."""
+        # Refine the raw prediction of continuous targets.
         prediction, top_filter = refine_signal(
             self.readouts['raw_prediction'], self.norm_params,
             self.top_filter, self.use_dynamic
         )
+        # Optionally stack binary predictions with the continuous ones.
+        if self.binary_tracks is not None:
+            self.readouts['_continuous_prediction'] = prediction
+            binary_prediction = self.readouts['_binary_prediction']
+            self.readouts['raw_prediction'] = self._interlace(
+                self.readouts['raw_prediction'], binary_prediction
+            )
+            prediction = self._interlace(prediction, binary_prediction)
+        # Record the full consolidated prediction.
         self.readouts['prediction'] = prediction
+        # If a top filter was built, store it in the layers stack.
         if top_filter is not None:
             n_filters = sum(
                 name.startswith('top_filter') for name in self.layers.keys()

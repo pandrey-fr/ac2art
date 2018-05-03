@@ -25,6 +25,24 @@ def add_dynamic_features(tensor, window=5, axis=1):
     return tf.concat([tensor, delta, deltadelta], axis=axis)
 
 
+def batch_tensor_mean(tensor, batch_sizes):
+    """Compute the sequence-wise mean of a tensor of batched units.
+
+    tensor      : tensor of rank 2 or more, batching zero-padded sequences
+    batch_sizes : tensor of rank 1 recording the actual (pre-padding)
+                  length of the batched sequences
+
+    Return a tensor of rank `tf.rank(tensor) - 1`
+    recording sequence-wise tensor means.
+    """
+    tf.assert_greater(tf.rank(tensor), 1)
+    tf.assert_rank(batch_sizes, 1)
+    maxlen = tensor.shape[1].value
+    mask = tf.sequence_mask(batch_sizes, maxlen=maxlen, dtype=tf.float32)
+    mask = tf.expand_dims(mask, 2)
+    return tf.reduce_sum(tensor * mask, axis=-2) / tf.reduce_sum(mask, axis=1)
+
+
 def binary_step(tensor):
     """Return a binary output depending on an input's positivity."""
     return tf.cast(tensor > 0, tf.float32)
