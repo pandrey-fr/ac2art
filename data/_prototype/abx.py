@@ -227,8 +227,8 @@ def build_abxpy_callers(corpus):
         features_file = os.path.join(
             abx_folder, features_filename + '.features'
         )
-        extension += '_abx.csv'
-        output_file = os.path.join(abx_folder, features_filename + extension)
+        features_filename += extension + 'abx.csv'
+        output_file = os.path.join(abx_folder, features_filename)
         # Check that the features file exists.
         if not os.path.exists(features_file):
             raise FileNotFoundError("No such file: '%s'." % features_file)
