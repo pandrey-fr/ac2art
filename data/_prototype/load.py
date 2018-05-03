@@ -179,7 +179,13 @@ def build_file_loaders(corpus):
             voicing = np.load(
                 os.path.join(data_folder, 'voicing', name + '_voicing.npy')
             )
-            ema = np.concatenate([ema, voicing], axis=1)
+            if use_dynamic:
+                n_static = ema.shape[1] // 3
+                ema = np.concatenate(
+                    [ema[:, :n_static], voicing, ema[:, n_static:]], axis=1
+                )
+            else:
+                ema = np.concatenate([ema, voicing], axis=1)
         # Return the articulatory data.
         return ema
 
