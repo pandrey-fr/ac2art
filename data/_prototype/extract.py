@@ -7,7 +7,7 @@ import sys
 import time
 
 import numpy as np
-import resampy
+import scipy.signal
 
 from data.utils import CONSTANTS, interpolate_missing_values
 from utils import check_positive_int, check_type_validity, import_from_string
@@ -114,10 +114,8 @@ def build_extractor(corpus, initial_sampling_rate):
         ], axis=1)
         # Optionally resample the EMA data.
         if sampling_rate != initial_sampling_rate:
-            ema = resampy.resample(
-                ema, sr_orig=initial_sampling_rate,
-                sr_new=sampling_rate, axis=0
-            )
+            ratio = sampling_rate / initial_sampling_rate
+            ema = scipy.signal.resample(ema, num=int(len(ema) * ratio))
         # Trim edge silences from EMA data and save it.
         ema = ema[start_frame:end_frame]
         np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
