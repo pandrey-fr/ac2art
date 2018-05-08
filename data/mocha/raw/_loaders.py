@@ -25,36 +25,34 @@ def get_speaker_utterances(speaker):
     ])
 
 
-def load_sphfile(path, sampling_rate, frame_size, hop_time):
+def load_sphfile(path, sampling_rate, frame_time, hop_time):
     """Return a Wav instance based on the data stored in a Sphere file."""
     # Build a temporary copy of the file, converted to actual waveform format.
-    tmp_path = path[:-4] + '_tmp.wav'
+    tmp_path = './' + os.path.basename(path[:-4]) + '_tmp.wav'
     SPHFile(path).write_wav(tmp_path)
     # Load data from the waveform file, and then remove the latter.
-    wav = Wav(tmp_path, sampling_rate, frame_size, hop_time)
+    wav = Wav(tmp_path, sampling_rate, frame_time, hop_time)
     os.remove(tmp_path)
     return wav
 
 
-def load_wav(filename, frame_size=200, hop_time=2):
+def load_wav(filename, frame_time=25, hop_time=10):
     """Load data from a mocha-timit waveform (.wav) file.
 
     filename   : name of the utterance whose audio data to load (str)
-    frame_size : number of samples to include per frame (int, default 200)
+    frame_time : frames duration, in milliseconds (int, default 25)
     hop_time   : duration of the shift step between frames, in milliseconds
-                 (int, default 2)
+                 (int, default 10)
 
     Return a `data.commons.Wav` instance, containing the audio waveform
-    and an array of frames grouping samples based on the `frame_size`
-    and `hop_time` arguments. The default values of the latter are set
-    to match the initial EMA sample rate and the frame size used in
-    papers dealing with the mngu0 corpus.
+    and an array of frames grouping samples based on the `frame_time`
+    and `hop_time` arguments.
     """
 
     # Load phone labels and compute frames index so as to trim silences.
     speaker = filename.split('_')[0]
     path = os.path.join(RAW_FOLDER, speaker, filename + '.wav')
-    return load_sphfile(path, 16000, frame_size, hop_time)
+    return load_sphfile(path, 16000, frame_time, hop_time)
 
 
 def load_larynx(filename):

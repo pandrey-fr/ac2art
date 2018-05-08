@@ -19,7 +19,7 @@ def build_arguments_checker(corpus, default_articulators):
 
     def control_arguments(
             audio_forms, n_coeff, articulators_list,
-            ema_sampling_rate, audio_frames_size
+            ema_sampling_rate, audio_frames_time
         ):
         """Control the arguments provided to extract some features.
 
@@ -32,9 +32,8 @@ def build_arguments_checker(corpus, default_articulators):
         """
         nonlocal default_articulators, new_folder
         # Check positive integer arguments.
-        check_positive_int(n_coeff, 'n_coeff')
         check_positive_int(ema_sampling_rate, 'ema_sampling_rate')
-        check_positive_int(audio_frames_size, 'audio_frames_size')
+        check_positive_int(audio_frames_time, 'audio_frames_time')
         # Check audio_forms argument validity.
         valid_forms = ['lpc', 'lsf', 'mfcc']
         if audio_forms is None:
@@ -51,6 +50,15 @@ def build_arguments_checker(corpus, default_articulators):
                 raise ValueError(
                     "Unknown audio representation(s): %s." % invalid
                 )
+        # Check n_coeff argument validity.
+        check_type_validity(n_coeff, (int, tuple, list), 'n_coeff')
+        if isinstance(n_coeff, int):
+            check_positive_int(n_coeff, 'single `n_coeff` value')
+            n_coeff = [n_coeff] * len(audio_forms)
+        elif len(n_coeff) != len(audio_forms):
+            raise TypeError(
+                "'n_coeff' sequence should be of same length as 'audio_forms'."
+            )
         # Build necessary folders to store the processed data.
         for name in audio_forms + ['ema', 'voicing']:
             dirname = os.path.join(new_folder, name)
@@ -62,7 +70,7 @@ def build_arguments_checker(corpus, default_articulators):
         else:
             check_type_validity(articulators_list, list, 'articulators_list')
         # Return potentially altered list arguments.
-        return audio_forms, articulators_list
+        return audio_forms, n_coeff, articulators_list
 
     # Return the defined function.
     return control_arguments
@@ -123,7 +131,7 @@ def build_extractor(corpus, initial_sampling_rate):
 
     def extract_data(
             utterance, audio_forms, n_coeff, articulators,
-            ema_sampling_rate, audio_frames_size
+            ema_sampling_rate, audio_frames_time
         ):
         """Extract acoustic and articulatory data of a given {0} utterance.
 
@@ -140,11 +148,11 @@ def build_extractor(corpus, initial_sampling_rate):
         extract_voicing(utterance, start_frame, end_frame, ema_sampling_rate)
         # Load the audio waveform data, structuring it into frames.
         wav = load_wav(
-            utterance, audio_frames_size, hop_time=1000 / ema_sampling_rate
+            utterance, audio_frames_time, hop_time=1000 / ema_sampling_rate
         )
         # Compute each audio features set, trim its edge silences and save it.
-        for name in audio_forms:
-            audio = getattr(wav, 'get_' + name)(n_coeff, static_only=False)
+        for name, n_values in zip(audio_forms, n_coeff):
+            audio = getattr(wav, 'get_' + name)(n_values, static_only=False)
             audio = audio[start_frame:end_frame]
             path = os.path.join(new_folder, name, utterance + '_%s.npy' % name)
             np.save(path, audio)
@@ -174,8 +182,8 @@ def build_features_extraction_functions(
     )
     # Define a function extracting features from all utterances.
     def extract_utterances_data(
-            audio_forms=None, n_coeff=12, articulators_list=None,
-            ema_sampling_rate=200, audio_frames_size=200
+            audio_forms=None, n_coeff=13, articulators_list=None,
+            ema_sampling_rate=100, audio_frames_time=25
         ):
         """Extract acoustic and articulatory data of each {0} utterance.
 
@@ -183,16 +191,16 @@ def build_features_extraction_functions(
                             to produce, among {{'lsf', 'lpc', 'mfcc'}}
                             (list of str, default None implying all of them)
         n_coeff           : number of static coefficients to compute for each
-                            representation of the audio data (int, default 12)
-                            Note : dynamic features as well as static and
-                            dynamic energy will be included as well with
-                            each of the audio forms.
+                            representation of the audio data, either as a
+                            single int or a list of int (default 13)
+                            Note : dynamic features will be added to those.
         articulators_list : optional list of raw EMA data columns to keep
                             (default None, implying twelve, detailed below)
         ema_sampling_rate : sample rate of the EMA data to use, in Hz
-                            (int, default 200)
-        audio_frames_size : number of acoustic samples to include per frame
-                            (int, default 200)
+                            (int, default 100)
+        audio_frames_time : duration of the audio frames used to compute
+                            acoustic features, in milliseconds
+                            (int, default 25)
 
         Data extractation includes the following:
           - optional resampling of the EMA data
@@ -210,15 +218,15 @@ def build_features_extraction_functions(
         """
         nonlocal control_arguments, extract_data, get_utterances_list
         # Check arguments, assign default values and build output folders.
-        audio_forms, articulators_list = control_arguments(
+        audio_forms, n_coeff, articulators_list = control_arguments(
             audio_forms, n_coeff, articulators_list,
-            ema_sampling_rate, audio_frames_size
+            ema_sampling_rate, audio_frames_time
         )
         # Iterate over all corpus utterances.
         for utterance in get_utterances_list():
             extract_data(
                 utterance, audio_forms, n_coeff, articulators_list,
-                ema_sampling_rate, audio_frames_size
+                ema_sampling_rate, audio_frames_time
             )
             end_time = time.asctime().split(' ')[-2]
             print('%s : Done with utterance %s.' % (end_time, utterance))

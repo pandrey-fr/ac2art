@@ -24,23 +24,23 @@ def get_speaker_utterances(speaker):
     ])
 
 
-def load_wav(filename, frame_size=200, hop_time=2.5):
+def load_wav(filename, frame_time=25, hop_time=10):
     """Load data from a mspka waveform (.wav) file.
 
     filename   : name of the utterance whose audio data to load (str)
-    frame_size : number of samples to include per frame (int, default 200)
+    frame_time : frames duration, in milliseconds (int, default 25)
     hop_time   : duration of the shift step between frames, in milliseconds
-                 (int, default 2.5)
+                 (int, default 10)
 
     Return a `data.commons.Wav` instance, containing the audio waveform
-    and an array of frames grouping samples based on the `frame_size`
+    and an array of frames grouping samples based on the `frame_time`
     and `hop_time` arguments.
     """
     speaker = filename.split('_')[0]
     path = os.path.join(
         RAW_FOLDER, speaker + '_1.0.0', 'wav_1.0.0', filename + '.wav'
     )
-    return Wav(path, 22050, frame_size, hop_time)
+    return Wav(path, 22050, frame_time, hop_time)
 
 
 def load_ema_base(filename, columns_to_keep=None):

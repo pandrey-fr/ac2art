@@ -27,24 +27,24 @@ class Wav:
     """
 
     def __init__(
-            self, filename, sampling_rate=16000, frame_size=200, hop_time=5
+            self, filename, sampling_rate=16000, frame_time=25, hop_time=5
         ):
         """Load the .wav data and reframe it.
 
         filename    : path to the .wav audio file.
         sample_rate : sampling rate of the signal, in Hz; resampling
                       will be used if needed (int, default 16000)
-        frame_size  : number of samples per frame (int, default 200)
+        frame_time  : frames duration, in milliseconds (int, default 25)
         hop_time    : number of milliseconds between each frame's
-                      start time (int, default 5)
+                      start time (int, default 10)
         """
         check_type_validity(filename, str, 'filename')
         self.filename = os.path.abspath(filename)
         data, sampling_rate = librosa.load(self.filename, sr=sampling_rate)
         self.signal = data
         self.sampling_rate = sampling_rate
-        self.frames = np.array([])
-        self.build_frames(frame_size, hop_time)
+        self.frame_length = int((frame_time * sampling_rate) / 1000)
+        self.hop_length = int((hop_time * sampling_rate) / 1000)
 
     def __len__(self):
         """Return the number of samples."""
@@ -54,21 +54,6 @@ class Wav:
     def duration(self):
         """Return the waveform's duration in seconds."""
         return len(self) / self.sampling_rate
-
-    def build_frames(self, frame_size=200, hop_time=5):
-        """Build frames out of the audio signal.
-
-        frame_size : number of samples per frame (int, default 200)
-        hop_time   : number of milliseconds between each frame's
-                     start time (int, default 5)
-
-        Generated frames are assigned to the `frames` attribute.
-        """
-        hop_size = int(self.sampling_rate * hop_time / 1000)
-        self.frames = np.array([
-            self.signal[i:i + frame_size]
-            for i in range(0, len(self.signal) + 1 - frame_size, hop_size)
-        ])
 
     def get_mfcc(self, n_coeff=13, static_only=False):
         """Return Mel-frequency cepstral coefficients for each audio frame.
@@ -84,23 +69,11 @@ class Wav:
         which it adapts so as to pass some specific options when building
         the initial spectrogram.
         """
-        if self.frames is None:
-            raise AttributeError('The wav file has not been framed yet.')
-        if not 1 <= n_coeff <= 40:
-            raise ValueError('Invalid number of MFCC coefficients.')
-        # Build a spectrogram.
-        n_frames, frames_size = self.frames.shape
-        hop_size = int(len(self.signal) / n_frames)
-        spectrogram = np.square(np.abs(  # Use abs to get rid of complex part.
-            librosa.stft(self.signal, frames_size, hop_size, center=False)
-        ))
-        # Adjust the spectrogram to the mel scale.
-        melfilt = librosa.filters.mel(self.sampling_rate, frames_size, 40)
-        melspectrogram = np.dot(melfilt, spectrogram)
-        # Compute the mel log powers. Return its discrete cosine transform.
-        mels = librosa.power_to_db(melspectrogram)
-        discrete_cosine_transform = librosa.filters.dct(n_coeff, len(mels))
-        mfcc = np.dot(discrete_cosine_transform, mels).T
+        # Compute MFCC coefficients.
+        mfcc = librosa.feature.mfcc(
+            self.signal, sr=self.sampling_rate, n_mfcc=n_coeff,
+            n_fft=self.frame_length, hop_length=self.hop_length
+        ).T
         # Optionally return the sole static mfcc coefficients.
         if static_only:
             return mfcc
@@ -111,7 +84,10 @@ class Wav:
 
     def get_rms_energy(self):
         """Return root mean squared energy for each audio frame."""
-        return np.sqrt(np.mean(np.square(self.frames), axis=1, keepdims=True))
+        return librosa.feature.rmse(
+            self.signal, frame_length=self.frame_length,
+            hop_length=self.hop_length
+        ).T
 
     def get_lpc(self, n_coeff=20, static_only=False):
         """Return linear predictive coding coefficients for each audio frame.
@@ -123,7 +99,10 @@ class Wav:
                       delta and deltadelta LPC and energy features
                       (bool, default False)
         """
-        lpc, _ = linear_predictive_coding(self.frames, n_coeff)
+        frames = librosa.util.frame(
+            self.signal, self.frame_length, self.hop_length
+        )
+        lpc, _ = linear_predictive_coding(frames, n_coeff)
         if static_only:
             return lpc
         return add_dynamic_features(
