@@ -29,10 +29,18 @@ def get_transcription(utterance):
     """Return the transcription of a given mocha-timit utterance."""
     utt_id = int(utterance.split('_', 1)[1])
     path = os.path.join(RAW_FOLDER, 'mocha-timit.txt')
+    transcription = ''
     with open(path) as transcripts:
         for _ in range(2 * (utt_id - 1)):
             next(transcripts)
-        transcription = next(transcripts)[:-2].split(' ', 1)[1]
+        for row in transcripts:
+            if row != '\n' and int(row[:3]) == utt_id:
+                transcription += row[5:-1]
+                if utt_id < 460:
+                    row = next(transcripts)
+                    if row != '\n' and int(row[:3]) == utt_id:
+                        transcription += row[5:-1]
+                break
     return transcription
 
 
