@@ -144,7 +144,7 @@ def build_abxpy_callers(corpus):
 
     def _phones_to_itemfile(utterance, symbols):
         """Build a dict of item file rows for a given utterance."""
-        nonlocal load_phone_labels, symbols
+        nonlocal load_phone_labels
         phones = load_phone_labels(utterance)
         times = [round(time - phones[0][0], 3) for time, _ in phones[:-1]]
         phones = [symbols[phone] for _, phone in phones]

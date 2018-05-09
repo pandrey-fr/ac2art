@@ -144,11 +144,11 @@ def build_extractor(corpus, initial_sampling_rate):
             utterance, start_frame, end_frame, ema_sampling_rate, articulators
         )
         extract_voicing(utterance, start_frame, end_frame, ema_sampling_rate)
-        # Load the audio waveform data, structuring it into frames.
+        # Load the audio waveform data.
         wav = load_wav(
-            utterance, audio_frames_time, hop_time=1000 / ema_sampling_rate
+            utterance, audio_frames_time, hop_time=(1000 / ema_sampling_rate)
         )
-        # Compute each audio features set, trim its edge silences and save it.
+        # Compute each kind of audio features, trim edge silences and save it.
         for name, n_values in zip(audio_forms, n_coeff):
             audio = getattr(wav, 'get_' + name)(n_values, static_only=False)
             audio = audio[start_frame:end_frame]
