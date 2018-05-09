@@ -38,7 +38,7 @@ def get_transcription(utterance):
                 transcription += row[5:-1]
                 if utt_id < 460:
                     row = next(transcripts)
-                    if row != '\n' and int(row[:3]) == utt_id:
+                    if row.strip(' ') != '\n' and int(row[:3]) == utt_id:
                         transcription += row[5:-1]
                 break
     return transcription
