@@ -22,6 +22,16 @@ def get_utterances_list(speaker=None):
     ])
 
 
+def get_transcription(utterance):
+    """Return the transcription of a given mngu0 utterance."""
+    path = os.path.join(RAW_FOLDER, 'phone_labels', utterance + '.utt')
+    with open(path) as utt_file:
+        for _ in range(4):
+            next(utt_file)
+        transcription = next(utt_file).split('\\"')[1].strip('.')
+    return transcription
+
+
 def load_wav(filename, frame_time=25, hop_time=10):
     """Load data from a mngu0 waveform (.wav) file.
 

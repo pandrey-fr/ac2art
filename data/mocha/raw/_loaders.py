@@ -25,6 +25,17 @@ def get_speaker_utterances(speaker):
     ])
 
 
+def get_transcription(utterance):
+    """Return the transcription of a given mocha-timit utterance."""
+    utt_id = int(utterance.split('_', 1)[1])
+    path = os.path.join(RAW_FOLDER, 'mocha-timit.txt')
+    with open(path) as transcripts:
+        for _ in range(2 * (utt_id - 1)):
+            next(transcripts)
+        transcription = next(transcripts)[:-2].split(' ', 1)[1]
+    return transcription
+
+
 def load_sphfile(path, sampling_rate, frame_time, hop_time):
     """Return a Wav instance based on the data stored in a Sphere file."""
     # Build a temporary copy of the file, converted to actual waveform format.
