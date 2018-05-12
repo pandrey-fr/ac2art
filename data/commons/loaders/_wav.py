@@ -61,9 +61,8 @@ class Wav:
         n_coeff     : number of MFCC to return for each frame
                       (positive int, default 13, maximum 40)
         static_only : whether to return the sole static MFCC features
-                      instead of replacing c_0 with the energy and compute
-                      the delta and deltadelta MFCC and energy features
-                      (bool, default False)
+                      instead of computing the delta and deltadelta
+                      features (bool, default False)
 
         This implementation is based on that of 'librosa.features.mfcc',
         which it adapts so as to pass some specific options when building
@@ -78,9 +77,7 @@ class Wav:
         if static_only:
             return mfcc
         # Otherwise, add the energy and the dynamic features to the return.
-        return add_dynamic_features(
-            np.concatenate([self.get_rms_energy(), mfcc[:, 1:]], axis=1)
-        )
+        return add_dynamic_features(mfcc)
 
     def get_rms_energy(self):
         """Return root mean squared energy for each audio frame."""
