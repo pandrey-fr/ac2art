@@ -3,6 +3,7 @@
 """Prototype and wrapper functions to normalize datasets."""
 
 import os
+import shutil
 
 import numpy as np
 
@@ -147,6 +148,12 @@ def _conduct_normalization(
         data = np.load(os.path.join(input_folder, filename))
         data = normalize(data)
         np.save(os.path.join(output_folder, filename), data)
+    # When normalizing articulatory features, copy articulators list.
+    if file_type == 'ema':
+        shutil.copyfile(
+            os.path.join(input_folder, 'articulators'),
+            os.path.join(output_folder, 'articulators')
+        )
 
 
 def _corpus_wide_normalize(
