@@ -160,7 +160,7 @@ def build_file_loaders(corpus):
                 articulators = [e for e in articulators if e != 'voicing']
             else:
                 add_voicing = False
-            articulators_list = load_articulators_list(corpus)
+            articulators_list = load_articulators_list(corpus, norm_type)
             invalid = [
                 name for name in articulators if name not in articulators_list
             ]
