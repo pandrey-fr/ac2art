@@ -24,18 +24,6 @@ def get_speaker_utterances(speaker):
     ])
 
 
-def get_transcription(utterance):
-    """Return the transcription of a given mspka utterance."""
-    speaker, utt_id = utterance.split('_', 1)
-    utt_id = int(utt_id)
-    path = os.path.join(RAW_FOLDER, speaker + '_1.0.0', 'list_sentences')
-    with open(path) as transcripts:
-        for _ in range(utt_id - 1):
-            next(transcripts)
-        transcription = next(transcripts)[:-2].split(' ', 1)[1].strip('.')
-    return transcription
-
-
 def load_wav(filename, frame_time=25, hop_time=10):
     """Load data from a mspka waveform (.wav) file.
 

@@ -9,6 +9,8 @@ import time
 import numpy as np
 import scipy.signal
 
+from data.commons.abkhazia import compute_mfcc, prepare_abkhazia_corpus
+from data.commons.abkhazia.utils import ark_to_npy
 from data.utils import CONSTANTS, interpolate_missing_values
 from utils import check_positive_int, check_type_validity, import_from_string
 
@@ -35,9 +37,9 @@ def build_arguments_checker(corpus, default_articulators):
         check_positive_int(ema_sampling_rate, 'ema_sampling_rate')
         check_positive_int(audio_frames_time, 'audio_frames_time')
         # Check audio_forms argument validity.
-        valid_forms = ['lpc', 'lsf', 'mfcc']
+        valid_forms = ['lpc', 'lsf', 'mfcc', 'mfcc_']
         if audio_forms is None:
-            audio_forms = valid_forms
+            audio_forms = valid_forms[:-1]
         else:
             if isinstance(audio_forms, str):
                 audio_forms = [audio_forms]
@@ -127,36 +129,52 @@ def build_extractor(corpus, initial_sampling_rate):
         path = os.path.join(new_folder, 'voicing', utterance + '_voicing.npy')
         np.save(path, voicing)
 
-    def extract_data(
-            utterance, audio_forms, n_coeff, articulators,
-            ema_sampling_rate, audio_frames_time
+    def extract_audio(
+            utterance, start_frame, end_frame, abkhazia_mfcc,
+            audio_forms, n_coeff, sampling_rate, frames_time
         ):
-        """Extract acoustic and articulatory data of a given {0} utterance.
+        """Generate (or adjust) and save speech features for an utterance."""
+        # Wrapped function; pylint: disable=too-many-arguments
+        nonlocal corpus, load_wav, new_folder
+        # Trim silences from abkhazia-produced mfcc features. Rename files.
+        if abkhazia_mfcc:
+            path = os.path.join(new_folder, 'mfcc', utterance)
+            mfcc = np.load(path + '.npy')
+            mfcc = mfcc[start_frame:end_frame]
+            np.save(path + '_mfcc.npy', mfcc)
+            os.remove(path + '.npy')
+        # Produce other audio forms, if any.
+        if audio_forms:
+            # Load the audio waveform data as a Wav object.
+            wav = load_wav(
+                utterance, frames_time, hop_time=(1000 / sampling_rate)
+            )
+            # Iterativley produce, adjust and save sets of features.
+            for name, n_feat in zip(audio_forms, n_coeff):
+                get_audio = getattr(wav, 'get_' + name.strip('_'))
+                audio = get_audio(n_feat, static_only=False)
+                audio = audio[start_frame:end_frame]
+                path = os.path.join(new_folder, name, utterance)
+                np.save(path + '_%s.npy' % name, audio)
 
-        This function serves as a dependency for `extract_utterances_data`,
-        avoiding to check again and again the same arguments.
-        """
+    def extract_data(
+            utterance, audio_forms, n_coeff, abkhazia_mfcc,
+            articulators, sampling_rate, frames_time
+        ):
+        """Extract acoustic and articulatory data of a given utterance."""
+        # Wrapped function; pylint: disable=too-many-arguments
         nonlocal load_wav, new_folder
-        # Compute frames index to trim edge silences.
-        start_frame, end_frame = get_boundaries(utterance, ema_sampling_rate)
-        # Run EMA and voicing data extraction.
+        start_frame, end_frame = get_boundaries(utterance, sampling_rate)
         extract_ema(
-            utterance, start_frame, end_frame, ema_sampling_rate, articulators
+            utterance, start_frame, end_frame, sampling_rate, articulators
         )
-        extract_voicing(utterance, start_frame, end_frame, ema_sampling_rate)
-        # Load the audio waveform data.
-        wav = load_wav(
-            utterance, audio_frames_time, hop_time=(1000 / ema_sampling_rate)
+        extract_voicing(utterance, start_frame, end_frame, sampling_rate)
+        extract_audio(
+            utterance, start_frame, end_frame, abkhazia_mfcc,
+            audio_forms, n_coeff, sampling_rate, frames_time
         )
-        # Compute each kind of audio features, trim edge silences and save it.
-        for name, n_values in zip(audio_forms, n_coeff):
-            audio = getattr(wav, 'get_' + name)(n_values, static_only=False)
-            audio = audio[start_frame:end_frame]
-            path = os.path.join(new_folder, name, utterance + '_%s.npy' % name)
-            np.save(path, audio)
 
-    # Adjust the previous functions's docstring and return it.
-    extract_data.__doc__ = extract_data.__doc__.format(corpus)
+    # Return the previous last function.
     return extract_data
 
 
@@ -206,6 +224,11 @@ def build_features_extraction_functions(
           - production of various acoustic features based on the audio data
           - trimming of silences at the beginning and end of each utterance
 
+        Note: 'mfcc' audio form will produce MFCC coefficients enriched
+              with pitch features, computed using abkhazia. Alternative
+              computation using `data.commons.loaders.Wav.get_mfcc()` may
+              be obtained using the 'mfcc_' keyword instead.
+
         The produced data is stored to the '{0}_processed_folder' set in the
         json configuration file, where a subfolder is built for each kind of
         features (ema, mfcc, etc.). Each utterance is stored as a '.npy' file.
@@ -214,17 +237,28 @@ def build_features_extraction_functions(
 
         {1}
         """
-        nonlocal control_arguments, extract_data, get_utterances_list
+        nonlocal corpus, control_arguments, extract_data, get_utterances_list
         # Check arguments, assign default values and build output folders.
         audio_forms, n_coeff, articulators_list = control_arguments(
             audio_forms, n_coeff, articulators_list,
             ema_sampling_rate, audio_frames_time
         )
+        # Compute mfcc coefficients using abkhazia, if relevant.
+        abkhazia_mfcc = 'mfcc' in audio_forms
+        if abkhazia_mfcc:
+            mfcc_ix = audio_forms.index('mfcc')
+            wav_to_mfcc(
+                corpus, n_coeff=n_coeff[mfcc_ix], pitch=True,
+                frame_time=audio_frames_time,
+                hop_time=(1000 / ema_sampling_rate)
+            )
+            del audio_forms[mfcc_ix]
+            del n_coeff[mfcc_ix]
         # Iterate over all corpus utterances.
         for utterance in get_utterances_list():
             extract_data(
-                utterance, audio_forms, n_coeff, articulators_list,
-                ema_sampling_rate, audio_frames_time
+                utterance, audio_forms, n_coeff, abkhazia_mfcc,
+                articulators_list, ema_sampling_rate, audio_frames_time
             )
             end_time = time.asctime().split(' ')[-2]
             print('%s : Done with utterance %s.' % (end_time, utterance))
@@ -241,3 +275,24 @@ def build_features_extraction_functions(
         extract_utterances_data.__doc__.format(corpus, docstring_details)
     )
     return extract_utterances_data
+
+
+def wav_to_mfcc(
+        corpus, n_coeff=13, pitch=True, frame_time=25, hop_time=10
+    ):
+    """Produce MFCC features using abkhazia for a given corpus."""
+    print('Running MFCC computation with abkhazia...')
+    # Establish folders to work with.
+    main_folder = CONSTANTS['%s_processed_folder' % corpus]
+    data_folder = os.path.join(main_folder, 'abkhazia', 'data')
+    mfcc_folder = os.path.join(main_folder, 'abkhazia', 'mfcc_features')
+    output_folder = os.path.join(main_folder, 'mfcc')
+    # Build an abkhazia data folder for the corpus.
+    prepare_abkhazia_corpus(corpus, data_folder)
+    # Compute MFCC features using abkhazia.
+    compute_mfcc(
+        data_folder, n_coeff, pitch, frame_time, hop_time, mfcc_folder
+    )
+    # Extract MFCC features to utterance-wise npy files.
+    ark_to_npy(os.path.join(mfcc_folder, 'feats.scp'), output_folder)
+    print('Done producing raw MFCC coefficients with abkhazia.')

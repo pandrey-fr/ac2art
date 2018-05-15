@@ -27,7 +27,7 @@ class Wav:
     """
 
     def __init__(
-            self, filename, sampling_rate=16000, frame_time=25, hop_time=5
+            self, filename, sampling_rate=16000, frame_time=25, hop_time=10
         ):
         """Load the .wav data and reframe it.
 
@@ -102,8 +102,10 @@ class Wav:
         lpc, _ = linear_predictive_coding(frames, n_coeff)
         if static_only:
             return lpc
+        energy = self.get_rms_energy()
+        length = min(len(energy), len(lpc))
         return add_dynamic_features(
-            np.concatenate([lpc, self.get_rms_energy()], axis=1)
+            np.concatenate([lpc[:length], energy[:length]], axis=1)
         )
 
     def get_lsf(self, n_coeff=20, static_only=False):
@@ -123,9 +125,11 @@ class Wav:
         lsf[np.isnan(lsf)] = 0
         # Optionally add energy and dynamic features before returning.
         if static_only:
-            return lpc
+            return lsf
+        energy = self.get_rms_energy()
+        length = min(len(energy), len(lsf))
         return add_dynamic_features(
-            np.concatenate([lsf, self.get_rms_energy()], axis=1)
+            np.concatenate([lsf[:length], energy[:length]], axis=1)
         )
 
 
