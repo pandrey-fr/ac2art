@@ -52,11 +52,15 @@ def prepare_abkhazia_corpus(
         abk_file.write('\n'.join(
             name + ' ' + name.strip('_') + '.wav' for name in utt_ids
         ))
-    # Build the utt2spk, spk2utt, text and lexicon files.
+    # Build the utt2spk, spk2utt, phones, silences and variants txt files.
     make_utt2spk_files(data_folder, utt_ids, mode)
-    make_text_files(data_folder, utt_ids, get_transcription, mode)
-    # Build the phones, silences and variants files.
-    make_phones_files(data_folder, corpus, limit_phones, mode)
+    make_phones_files(data_folder, limit_phones, mode)
+    # Load the corpus-specific to cross-corpus symbols conversion table.
+    symbols = pd.read_csv(CONSTANTS['symbols_file'], index_col=corpus)
+    symbols = symbols['common' + '_reduced' * limit_phones].to_dict()
+    make_text_files(
+        data_folder, utt_ids, get_transcription, symbols, mode
+    )
 
 
 def normalize_utterance_ids(utterances, id_length=None):
@@ -69,7 +73,6 @@ def normalize_utterance_ids(utterances, id_length=None):
             "'id_length' argument is too small: longest id is %s." % max_length
         )
     return [name + '_' * (id_length - len(name)) for name in utterances]
-
 
 
 def make_utt2spk_files(data_folder, utt_ids, mode='w'):
@@ -94,12 +97,14 @@ def make_utt2spk_files(data_folder, utt_ids, mode='w'):
         ))
 
 
-def make_text_files(data_folder, utt_ids, get_transcription, mode='w'):
+def make_text_files(
+        data_folder, utt_ids, get_transcription, symbols, mode='w'
+    ):
     """Fill the text and lexicon files for abkhazia."""
-    # TO FIX: phones symbols overlap when dealing with multiple corpora.
-    # TO DO : add an option to replace symbols with IPA ones directly.
-    if mode == 'a':
-        with open(os.path.join(data_folder, 'lexicon.txt')) as lex_file:
+    # Load the pre-existing lexicon, if relevant.
+    lexicon_path = os.path.join(data_folder, 'lexicon.txt')
+    if mode == 'a' and os.path.isfile(lexicon_path):
+        with open(lexicon_path) as lex_file:
             next(lex_file)
             lexicon = {row.split(' ', 1)[0] for row in lex_file}
     else:
@@ -108,28 +113,47 @@ def make_text_files(data_folder, utt_ids, get_transcription, mode='w'):
     with open(os.path.join(data_folder, 'text.txt'), mode) as abk_file:
         for name in utt_ids:
             transcript = get_transcription(name.strip('_'), phonetic=True)
-            lexicon.update({word for word in transcript.split(' ')})
-            abk_file.write(name + ' ' + transcript + '\n')
+            transcript = [
+                '-'.join(symbols[phone] for phone in word.split('-'))
+                for word in transcript.split(' ')
+            ]
+            lexicon.update(set(transcript))
+            abk_file.write(name + ' ' + ' '.join(transcript) + '\n')
     # Order and clean the lexicon.
     lexicon = sorted(lexicon)
     if '' in lexicon:
         lexicon.remove('')
     # Write the lexicon file.
-    with open(os.path.join(data_folder, 'lexicon.txt'), 'w') as abk_file:
+    with open(lexicon_path, 'w') as abk_file:
         abk_file.write('<unk> SPN\n')
         abk_file.write('\n'.join(
             word + ' ' + word.replace('-', ' ') for word in lexicon
         ))
 
 
-def make_phones_files(data_folder, corpus, limit_phones=True, mode='w'):
+def make_phones_files(data_folder, limit_phones, mode='w'):
     """Fill the phones, silences and variants txt files for abkhazia."""
-    # Fill the phones.txt file.
-    symbols = pd.read_csv(CONSTANTS['%s_symbols' % corpus])
-    symbols[['symbols', 'ipa' + '_reduced' * limit_phones]].to_csv(
-        os.path.join(data_folder, 'phones.txt'), sep=' ',
-        header=False, index=False, mode=mode
-    )
+    # Load the phone symbols conversion table.
+    symbols = pd.read_csv(CONSTANTS['symbols_file'], index_col='common')
+    if limit_phones:
+        symbols = symbols[symbols.index.isin(symbols['common_reduced'])]
+    symbols = symbols['ipa']
+    # Merge the table with the pre-existing one, if relevant.
+    path = os.path.join(data_folder, 'phones.txt')
+    if mode == 'a' and os.path.exists(path):
+        symbols = symbols.to_dict()
+        old = pd.read_csv(path, sep=' ', header=None)
+        if old.shape[1] != 2:
+            raise TypeError("Wrong pre-existing 'phones.txt' data format.")
+        for key, ipa in old.values:
+            if symbols.setdefault(key, ipa) != ipa:
+                raise KeyError(
+                    "Clashing '%s' entry in new and pre-existing " % key
+                    + "phone symbols mapping tables."
+                )
+        symbols = pd.Series(symbols)
+    # Write the phones.txt file.
+    symbols.to_csv(path, sep=' ', header=False, mode='w')
     # Fill the silences.txt file.
     with open(os.path.join(data_folder, 'silences.txt'), 'w') as abk_file:
         abk_file.write('SIL\nSPN')

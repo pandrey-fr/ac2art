@@ -80,7 +80,7 @@ def build_h5features_extractor(corpus):
     def extract_h5_features(
             audio_features=None, ema_features=None, inverter=None,
             output_name='%s_features' % corpus, articulators=None,
-            dynamic_ema=True, sampling_rate=200
+            dynamic_ema=True, sampling_rate=100
         ):
         """Build an h5 file recording audio features associated with {0} data.
 
@@ -94,7 +94,7 @@ def build_h5features_extractor(corpus):
         articulators   : optional list of articulators to keep among EMA data
         dynamic_ema    : whether to include dynamic articulatory features
                          (bool, default True)
-        sampling_rate  : sampling rate of the frames, in Hz (int, default 200)
+        sampling_rate  : sampling rate of the frames, in Hz (int, default 100)
         """
         # Arguments serve modularity; pylint: disable=too-many-arguments
         nonlocal abx_folder, get_utterances, _setup_features_loader
@@ -172,10 +172,11 @@ def build_abxpy_callers(corpus):
 
         fileset      : optional set name whose utterances to use (str)
         limit_phones : whether to aggregate some phonemes, using
-                        the 'ipa_reduced' column of the {0} symbols
-                        file as mapping (bool, default False)
+                       the 'common_reduced' column of the symbols
+                       file as mapping (bool, default False)
         """
         nonlocal abx_folder, corpus, get_utterances, _phones_to_itemfile
+        print('Creating item file...')
         # Establish the item file's location.
         output_file = get_task_name(fileset, limit_phones) + 'phones.item'
         output_file = os.path.join(abx_folder, output_file)
@@ -183,10 +184,12 @@ def build_abxpy_callers(corpus):
         columns = ['#file', 'onset', 'offset', '#phone', 'context', 'speaker']
         with open(output_file, mode='w') as itemfile:
             itemfile.write(' '.join(columns) + '\n')
-        # Load the corpus-specific to IPA phone symbols mapping dict.
+        # Load the corpus-specific to cross-corpus phone symbols mapping dict.
+        # note: non-ipa cross-corpus symbols are used because ABXpy
+        #       (python 2) does not support non-ascii characters
         symbols = pd.read_csv(
-            CONSTANTS['%s_symbols' % corpus], index_col='symbols'
-        )['ipa' + '_reduced' * limit_phones].to_dict()
+            CONSTANTS['symbols_file'], index_col=corpus
+        )['common' + '_reduced' * limit_phones].to_dict()
         # Iteratively add utterances phone labels to the item file.
         for utterance in get_utterances(fileset):
             items = pd.DataFrame(_phones_to_itemfile(utterance, symbols))
@@ -194,6 +197,7 @@ def build_abxpy_callers(corpus):
                 output_file, index=False, header=False,
                 sep=' ', mode='a', encoding='utf-8'
             )
+        print('Done creating %s file.' % output_file)
 
     def make_abx_task(fileset=None, byspeaker=True, limit_phones=False):
         """Build a .abx ABXpy task file associated with {0} phones.
@@ -202,15 +206,18 @@ def build_abxpy_callers(corpus):
         byspeaker    : whether to discriminate pairs from the same
                        speaker only (bool, default True)
         limit_phones : whether to aggregate some phonemes, using
-                       the 'ipa_reduced' column of the {0} symbols
+                       the 'common_reduced' column of the symbols
                        file as mapping (bool, default False)
         """
         nonlocal abx_folder, corpus, make_itemfile
+        print('Creating task file...')
         # Build the item file if necessary.
         task_name = get_task_name(fileset, limit_phones)
         item_file = os.path.join(abx_folder, task_name + 'phones.item')
         if not os.path.isfile(item_file):
             make_itemfile(fileset, limit_phones)
+        else:
+            print('Using found %s file.' % item_file)
         # Establish the task file's path and the ABXpy task's 'on' argument.
         output_file = os.path.join(
             abx_folder, task_name + ('byspk_' * byspeaker) + 'task.abx'
@@ -218,6 +225,7 @@ def build_abxpy_callers(corpus):
         within = 'context speaker' if byspeaker else 'context'
         # Run the ABXpy task module.
         abxpy_task(item_file, output_file, on='phone', by=within)
+        print('Done creating %s file.' % output_file)
 
     def abx_from_features(
             features, fileset=None, byspeaker=True,
@@ -246,7 +254,7 @@ def build_abxpy_callers(corpus):
         task_file = os.path.join(abx_folder, task_name + 'task.abx')
         # Declare paths to the input features and output scores files.
         features_file = os.path.join(abx_folder, features + '.features')
-        scores_file = features + task_name.split('_', 1)[1] + 'abx.csv'
+        scores_file = features + '_' + task_name.split('_', 1)[1] + 'abx.csv'
         scores_file = os.path.join(abx_folder, scores_file)
         # Check that the features file exists.
         if not os.path.exists(features_file):
@@ -254,15 +262,20 @@ def build_abxpy_callers(corpus):
         # Build the ABX task file if necessary.
         if not os.path.isfile(task_file):
             make_abx_task(fileset, byspeaker, limit_phones)
+        else:
+            print('Using found %s file.' % task_file)
         # Run the ABXpy pipeline.
         abxpy_pipeline(features_file, task_file, scores_file, n_jobs)
+        # Replace phone symbols with IPA ones in the scores file.
+        add_ipa_symbols(scores_file)
+
 
     def load_abx_scores(filename):
         """Load, aggregate and return some pre-computed abx scores."""
         nonlocal abx_folder, corpus
         # Load the ABX scores.
         path = os.path.join(abx_folder, filename + '_abx.csv')
-        data = pd.read_csv(path, sep='\t')
+        data = pd.read_csv(path)
         # Collapse the scores (i.e. forget about contexts and speakers).
         data['score'] *= data['n']
         data['phones'] = data.apply(
@@ -281,3 +294,15 @@ def build_abxpy_callers(corpus):
     for function in functions:
         function.__doc__ = function.__doc__.format(corpus)
     return functions
+
+
+def add_ipa_symbols(scores_file):
+    """Replace phone symbols in an ABXpy scores file with IPA ones."""
+    print('Replacing phoneme symbols with IPA ones...')
+    scores = pd.read_csv(scores_file, sep='\t')
+    symbols = pd.read_csv(CONSTANTS['symbols_file'], index_col='common')
+    symbols = symbols['ipa'].to_dict()
+    for col in ('phone_1', 'phone_2'):
+        scores[col] = scores[col].apply(symbols.get)
+    scores.to_csv(scores_file, sep=',', index=False)
+    print('Done updating scores file.')
