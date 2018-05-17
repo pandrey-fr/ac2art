@@ -6,8 +6,10 @@
 import tensorflow as tf
 import numpy as np
 
+from neural_networks.components.dense_layer import DenseLayer
 from neural_networks.core import (
-    build_rmse_readouts, refine_signal, validate_layer_config
+    build_layers_stack, build_rmse_readouts, DeepNeuralNetwork,
+    refine_signal, validate_layer_config
 )
 from neural_networks.models import MultilayerPerceptron
 from utils import check_type_validity, onetimemethod
@@ -27,7 +29,7 @@ class AutoEncoder(MultilayerPerceptron):
     def __init__(
             self, input_shape, n_targets, encoder_config, decoder_config,
             encoder_filter=None, decoder_filter=None, use_dynamic=True,
-            norm_params=None, optimizer=None
+            binary_tracks=None, norm_params=None, optimizer=None
         ):
         """Instantiate the auto-encoder network.
 
@@ -44,6 +46,8 @@ class AutoEncoder(MultilayerPerceptron):
         decoder_filter : optional tuple specifying a top filter for the decoder
         use_dynamic    : whether to produce dynamic features and use them
                          when training the model (bool, default True)
+        binary_tracks  : optional list of targets which are binary-valued
+                         (and should therefore not have delta counterparts)
         norm_params    : optional normalization parameters of the targets
                          (np.ndarray)
         optimizer      : tensorflow.train.Optimizer instance (by default,
@@ -61,62 +65,18 @@ class AutoEncoder(MultilayerPerceptron):
         layers with identity activation.
         """
         # Arguments serve modularity ; pylint: disable=too-many-arguments
-        # Compute the number of elements to reconstruct.
-        check_type_validity(input_shape, (list, tuple), 'input_shape')
-        check_type_validity(use_dynamic, bool, 'use_dynamic')
-        n_inputs = input_shape[-1]
-        if use_dynamic:
-            if n_inputs % 3:
-                raise ValueError(
-                    "Wrong `input_shape` with `use_dynamic=True`: "
-                    "dim 1 should a divisor of 3."
-                )
-            n_inputs //= 3
-        # Build the network's full layers configuration.
-        layers_config = self._build_layers_config(
-            n_inputs, n_targets, encoder_config, decoder_config,
-            encoder_filter, decoder_filter
-        )
+        # Use the basic API init instead of that of the direct parent.
+        # pylint: disable=super-init-not-called, non-parent-init-called
         # Initialize the auto-encoder network.
-        super().__init__(
-            input_shape, n_targets, layers_config, use_dynamic=use_dynamic,
-            binary_tracks=False, optimizer=optimizer
+        DeepNeuralNetwork.__init__(
+            self, input_shape, n_targets, layers_config=[],
+            use_dynamic=use_dynamic, binary_tracks=binary_tracks,
+            encoder_config=encoder_config, encoder_filter=encoder_filter,
+            decoder_config=decoder_config, decoder_filter=decoder_filter,
+            optimizer=optimizer
         )
-        # Record additionnal initialization arguments.
-        self._init_arguments['encoder_config'] = encoder_config
-        self._init_arguments['decoder_config'] = decoder_config
-        self._init_arguments['encoder_filter'] = encoder_filter
-        self._init_arguments['decoder_filter'] = decoder_filter
         # Remove unused inherited argument.
         self._init_arguments.pop('top_filter')
-
-    @staticmethod
-    def _build_layers_config(
-            n_inputs, n_targets, encoder_config, decoder_config,
-            encoder_filter, decoder_filter
-        ):
-        """Build and return the list specifying all network layers."""
-        # Conduct minimal necessary tests. More are run later on.
-        check_type_validity(encoder_config, list, 'encoder_config')
-        check_type_validity(decoder_config, list, 'decoder_config')
-
-        # Define a function specifying readout layers.
-        def get_readout(part, n_units, top_filter):
-            """Return the configuration of a network part's readout layer."""
-            kwargs = {'activation': 'identity', 'name': part + '_readout'}
-            readout_layer = ('dense_layer', n_units, kwargs)
-            if top_filter is None:
-                return [readout_layer]
-            top_filter = validate_layer_config(top_filter)
-            top_filter[2].setdefault('name', part + '_top_filter')
-            return [readout_layer, top_filter]
-
-        # Aggregate the encoder's and decoder's layers.
-        encoder_readout = get_readout('encoder', n_targets, encoder_filter)
-        decoder_readout = get_readout('decoder', n_inputs, decoder_filter)
-        return (
-            encoder_config + encoder_readout + decoder_config + decoder_readout
-        )
 
     def _adjust_init_arguments_for_saving(self):
         """Adjust `_init_arguments` attribute before dumping the model.
@@ -132,6 +92,103 @@ class AutoEncoder(MultilayerPerceptron):
         return init_args, rebuild_init
 
     @onetimemethod
+    def _validate_args(self):
+        """Docstring."""
+        # Validate arguments that do not define the model's layers.
+        super()._validate_args()
+        # Check input_shape and use_dynamic parameters' compatibility.
+        if self.use_dynamic and self.input_shape[-1] % 3:
+            raise ValueError(
+                "Wrong `input_shape` with `use_dynamic=True`: "
+                "dim 1 should a divisor of 3."
+            )
+        # Validate and alter if needed the network's layers' configuration.
+        for half in ('encoder', 'decoder'):
+            # Check the network's half's hidden layers' configuration.
+            layers_config = self._init_arguments[half + '_config']
+            check_type_validity(layers_config, list, half + '_config')
+            for i, config in enumerate(layers_config):
+                layers_config[i] = validate_layer_config(config)
+            # Check the network's half's top filter's configuration.
+            top_filter = self._init_arguments[half + '_filter']
+            if top_filter is not None:
+                self._init_arguments[half + '_filter'] = (
+                    validate_layer_config(top_filter)
+                )
+
+    @onetimemethod
+    def _build_hidden_layers(self):
+        """Build the network's hidden layers and readouts.
+
+        The name of this private method is thus inaccurate,
+        but mandatory to preserve API standards.
+        """
+        self._build_encoder()
+        self._build_decoder()
+
+    @onetimemethod
+    def _build_encoder(self):
+        """Build the layers and readouts of the network's encoder half."""
+        # Build the encoder's hidden layers' stack.
+        hidden_layers = build_layers_stack(
+            self.holders['input'], self.encoder_config,
+            self.holders['keep_prob'], self.holders.get('batch_sizes'),
+            check_config=False
+        )
+        for key, layer in hidden_layers.items():
+            self.layers['encoder_' + key] = layer
+        # Build the encoder's readout layer(s) and derived readouts.
+        super()._build_readout_layer()
+        self._init_arguments['top_filter'] = self.encoder_filter
+        super()._build_readouts()
+        # Rename the encoder's readout layers' storage keys.
+        self.layers['encoder_readout_layer'] = self.layers.pop('readout_layer')
+        if self.binary_tracks:
+            self.layers['encoder_readout_layer_binary'] = (
+                self.layers.pop('readout_layer_binary')
+            )
+        if self.encoder_filter:
+            for key in list(self.layers.keys())[::-1]:
+                if key.startswith('top_filter'):
+                    self.layers['encoder_top_filter'] = self.layers.pop(key)
+                    break
+        # Rename all generated readouts associated with the encoder.
+        for key in list(self.readouts.keys()):
+            self.readouts['encoder_' + key] = self.readouts.pop(key)
+
+    @onetimemethod
+    def _build_decoder(self):
+        """Build the layers and readouts of the network's decoder half."""
+        # Build the decoder's hidden layers' stack.
+        hidden_layers = build_layers_stack(
+            self.readouts['encoder_prediction'], self.decoder_config,
+            self.holders['keep_prob'], self.holders.get('batch_sizes'),
+            check_config=False
+        )
+        for key, layer in hidden_layers.items():
+            self.layers['decoder_' + key] = layer
+        # Build the decoder's readout layer.
+        n_targets = self.input_shape[-1]
+        if self.use_dynamic:
+            n_targets //= 3
+        self.layers['decoder_readout_layer'] = readout_layer = DenseLayer(
+            self._top_layer.output, n_targets, 'identity'
+        )
+        # Build and refine the decoder's prediction.
+        self.readouts['decoder_raw_prediction'] = readout_layer.output
+        prediction, top_filter = refine_signal(
+            readout_layer.output, None, self.decoder_filter, self.use_dynamic
+        )
+        if self.decoder_filter:
+            self.layers['decoder_top_filter'] = top_filter
+        # Build the decoder's error readouts.
+        rmse_readouts = build_rmse_readouts(
+            prediction, self.holders['input'], self.holders.get('batch_sizes')
+        )
+        for key, readout in rmse_readouts.items():
+            self.readouts['decoder_' + key] = readout
+
+    @onetimemethod
     def _build_readout_layer(self):
         """Empty method, solely included to respect the API standards."""
         pass
@@ -139,22 +196,6 @@ class AutoEncoder(MultilayerPerceptron):
     @onetimemethod
     def _build_readouts(self):
         """Build wrappers of the network's predictions and errors."""
-        def build_readouts(part, true_data, norm_params=None):
-            """Build the error readouts of a part of the network."""
-            raw_output = self.layers.get(
-                part + '_top_filter', self.layers[part + '_readout']
-            ).output
-            output, _ = refine_signal(
-                raw_output, norm_params, None, self.use_dynamic
-            )
-            readouts = build_rmse_readouts(
-                output, true_data, self.holders.get('batch_sizes')
-            )
-            for name, readout in readouts.items():
-                self.readouts[part + '_' + name] = readout
-        # Use the previous function to build partial RMSE readouts.
-        build_readouts('encoder', self.holders['targets'], self.norm_params)
-        build_readouts('decoder', self.holders['input'])
         # Build wrappers aggregating predictions and scores of the model.
         self.readouts['rmse'] = tf.concat([
             self.readouts['encoder_rmse'], self.readouts['decoder_rmse']
@@ -218,5 +259,5 @@ class AutoEncoder(MultilayerPerceptron):
 
     def _split_metrics(self, metrics):
         """Split an array aggregating encoder and decoder outputs."""
-        n_targets = self.n_targets * (3 if self.use_dynamic else 1)
-        return metrics[..., :n_targets], metrics[..., n_targets:]
+        n_input = self.input_shape[-1]
+        return metrics[..., :-n_input], metrics[..., -n_input:]
