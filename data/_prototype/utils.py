@@ -23,16 +23,18 @@ def load_articulators_list(corpus, norm_type=None):
     return articulators
 
 
-def read_transcript(path, phonetic=False, silences=None):
+def read_transcript(path, phonetic=False, silences=None, fields=3):
     """Generic function to read an utterance's transcript.
 
     path     : path to the .lab file to read (str)
     phonetic : whether to return phonetic transcription
                instead of word one (bool, default False)
     silences : optional list of silence markers to ignore
+    fields   : number of space-separated fields on rows
+               which contain a word beginning (int, default 3)
 
     This function is compatible with mspka .lab files and
-    manually-enhanced mocha-timit .lab files.
+    manually-enhanced mocha-timit and mngu0 .lab files.
     """
     if silences is None:
         silences = []
@@ -48,12 +50,12 @@ def read_transcript(path, phonetic=False, silences=None):
                     continue
                 n_fields = row.count(' ')
                 # Case when the row marks the beginning of a new word.
-                if n_fields == 3:
+                if n_fields == fields:
                     if word:
-                        words.append(word)
+                        words.append(word.strip('-'))
                     word = row.rsplit(' ', 2)[1]
                 # Case when the row marks the continuation of a word.
-                elif n_fields == 2:
+                elif n_fields == (fields - 1):
                     word += '-' + row.rsplit(' ', 1)[1]
             if word:
                 words.append(word)
@@ -62,7 +64,7 @@ def read_transcript(path, phonetic=False, silences=None):
         with open(path) as lab_file:
             words = [
                 row.strip(' \n').rsplit(' ', 1)[1]
-                for row in lab_file if row.count(' ') == 3
+                for row in lab_file if row.count(' ') == fields
             ]
     # Return the transcription as a string.
     return ' '.join(words)

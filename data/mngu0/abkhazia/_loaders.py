@@ -3,21 +3,18 @@
 """Set of dependency functions to build mngu0 abkhazia corpus files."""
 
 import os
-import re
 import shutil
 
 
 from data.mngu0.raw import get_utterances_list
+from data._prototype.utils import read_transcript
 from data.utils import CONSTANTS
-
-
-RAW_FOLDER = CONSTANTS['mngu0_raw_folder']
 
 
 def copy_wavs(dest_folder):
     """Copy mngu0 wav files to a given folder."""
     utterances = get_utterances_list()
-    wav_folder = os.path.join(RAW_FOLDER, 'wav_16kHz')
+    wav_folder = os.path.join(CONSTANTS['mngu0_raw_folder'], 'wav_16kHz')
     for name in utterances:
         name += '.wav'
         shutil.copyfile(
@@ -28,22 +25,8 @@ def copy_wavs(dest_folder):
 
 
 def get_transcription(utterance, phonetic=False):
-    """Return the transcription of a given mngu0 utterance.
-
-    Note: as labelling of mngu0 data is not over yet, this
-          function returns a pseudo-phonetic transcription
-          instead of the actual one.
-    """
-    # Gather words transcript.
-    path = os.path.join(RAW_FOLDER, 'phone_labels', utterance + '.utt')
-    with open(path) as utt_file:
-        for _ in range(4):
-            next(utt_file)
-        transcript = next(utt_file).split('\\"')[1].strip('.')
-    # Optionally pseudo-phonetize the utterance.
-    if phonetic:
-        # Use regex; pylint: disable=anomalous-backslash-in-string
-        transcript = re.sub('[^\w ]', ' ', transcript.lower())
-        transcript = re.sub('  +', ' ', transcript)
-        transcript = ' '.join(map('-'.join, transcript.split(' ')))
-    return transcript
+    """Return the transcription of a given mngu0 utterance."""
+    path = os.path.join(
+        CONSTANTS['mngu0_processed_folder'], 'labels', utterance + '.lab'
+    )
+    return read_transcript(path, phonetic, silences=['#'], fields=2)

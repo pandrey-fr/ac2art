@@ -62,7 +62,7 @@ def load_phone_labels(filename):
             row.strip('\n').strip('\t').replace(' 26 ', '').split('\t')
             for row in file
         ]
-    return [(float(label[0]), label[1]) for label in labels]
+    return [(round(float(label[0]), 2), label[1]) for label in labels]
 
 
 # Define a function through a wrapper; pylint: disable=invalid-name
