@@ -51,7 +51,7 @@ def prepare_abkhazia_corpus(
     with open(os.path.join(data_folder, 'segments.txt'), mode) as abk_file:
         abk_file.write('\n'.join(
             name + ' ' + name.strip('_') + '.wav' for name in utt_ids
-        ))
+        ) + '\n')
     # Build the utt2spk, spk2utt, phones, silences and variants txt files.
     make_utt2spk_files(data_folder, utt_ids, mode)
     make_phones_files(data_folder, limit_phones, mode)
@@ -94,7 +94,7 @@ def make_utt2spk_files(data_folder, utt_ids, mode='w'):
         abk_file.write('\n'.join(
             speaker + ' ' + ' '.join(utterances)
             for speaker, utterances in speaker_utterances.items()
-        ))
+        ) + '\n')
 
 
 def make_text_files(
