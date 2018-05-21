@@ -282,7 +282,6 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             self.score(input_data, targets, loss='likelihood')
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
-        # Gather samples' lengths.
-        sizes = self._get_corpus_sizes(input_corpus)
-        # Reduce scores and return them.
-        return np.sum(scores * sizes, axis=0) / sizes.sum()
+        # Gather samples' lengths. Reduce scores and return them.
+        sizes = self._get_corpus_sizes(input_corpus).ravel()
+        return np.sum(scores * sizes) / sizes.sum()
