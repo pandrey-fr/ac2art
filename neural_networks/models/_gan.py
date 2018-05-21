@@ -1,114 +1,22 @@
 # coding: utf-8
 
-"""Set of classes implementing Generative Adversarial Nets for inversion."""
-
-import os
-import time
+"""Class implementing Generative Adversarial Nets for inversion."""
 
 import tensorflow as tf
+import numpy as np
 
 from neural_networks.components.dense_layer import DenseLayer
-from neural_networks.core import DeepNeuralNetwork, build_layers_stack
-from neural_networks.tf_utils import minimize_safely, tensor_length
+from neural_networks.components.filters import SignalFilter
+from neural_networks.core import (
+    build_layers_stack, build_binary_classif_readouts,
+    DeepNeuralNetwork, get_layer_class, validate_layer_config
+)
+from neural_networks.models import MultilayerPerceptron
+from neural_networks.tf_utils import minimize_safely
 from utils import check_type_validity, onetimemethod
 
 
-class Discriminator:
-    """Structure designing a binary sequence classifier.
-
-    This class partly mimics the API of the DeepNeuralNetwork class, but
-    it does not inherit from it nor implement all of its functionalities.
-    """
-    # Structure rather than class; pylint: disable=too-few-public-methods
-
-    def __init__(
-            self, input_tensor, labels_tensor, sizes_tensor, layers_config
-        ):
-        """Instantiate the discriminator network.
-
-        input_tensor  : input sequences to discriminate (tensorflow.Tensor)
-                        of shape [n_sequences, seq_length, seq_width]
-        labels_tensor : labels indicating which input sequences are real
-                        and which are synthetic (tensorflow.Tensor)
-        sizes_tensor  : true lengths of the sequences (tensorflow.Tensor)
-        layers_config : list of tuples specifying the discriminator
-                        network's architecture; each tuple should
-                        be composed of a number of units (int) and
-                        a dict of keyword arguments used when
-                        building the fully-connected layers
-        """
-        # Assign the arguments as attributes and control their validity.
-        self.input_tensor = input_tensor
-        self.labels_tensor = labels_tensor
-        self.sizes_tensor = sizes_tensor
-        self.layers_config = layers_config
-        self._validate_args()
-        # Build the network.
-        self.layers = None
-        self.readouts = {}
-        self._build_layers()
-        self._build_readouts()
-
-    @onetimemethod
-    def _validate_args(self):
-        """Control the validity of the initialization arguments."""
-        check_type_validity(self.input_tensor, tf.Tensor, 'input_tensor')
-        check_type_validity(self.labels_tensor, tf.Tensor, 'labels_tensor')
-        check_type_validity(self.sizes_tensor, tf.Tensor, 'sizes_tensor')
-        tf.assert_rank(self.input_tensor, 3)
-        tf.assert_rank(self.labels_tensor, 1)
-        tf.assert_rank(self.sizes_tensor, 1)
-        check_type_validity(self.layers_config, list, 'layers_config')
-        for i, config in enumerate(self.layers_config):
-            if not isinstance(config, tuple) and len(config) == 2:
-                raise TypeError(
-                    '`layers_config` should contain two-elements tuples.'
-                )
-            self.layers_config[i] = ('dense_layer', *config)
-
-    @property
-    def _weights(self):
-        """Return the weight and biases tensors of all neural layers."""
-        return [
-            (layer.weights, layer.bias) if layer.bias else layer.weights
-            for layer in self.layers.values()
-        ]
-
-    @onetimemethod
-    def _build_layers(self):
-        """Build the discriminator network's layers stack."""
-        self.layers = build_layers_stack(self.input_tensor, self.layers_config)
-        self.layers['readout_layer'] = DenseLayer(
-            self.layers[list(self.layers.keys())[-1]].output,
-            n_units=1, activation='sigmoid'
-        )
-
-    @onetimemethod
-    def _build_readouts(self):
-        """Build wrappers on top of the network's readout layer."""
-        # Compute predicted probabilities of sequence authenticity.
-        readout = self.layers['readout_layer'].output
-        mask = tf.sequence_mask(
-            self.sizes_tensor, maxlen=self.input_tensor.shape[1].value,
-            dtype=tf.float32
-        )
-        self.readouts['predicted_proba'] = pred_proba = (
-            tf.reduce_sum(readout * tf.expand_dims(mask, 2), axis=1)
-            / tf.reduce_sum(mask, axis=1, keepdims=True)
-        )[:, 0]
-        # Compute the binary cross-entropy of true and predicted labels.
-        self.readouts['cross_entropy'] = - tf.reduce_mean(
-            self.labels_tensor * tf.log(pred_proba + 1e-32)
-            + (1 - self.labels_tensor) * tf.log(1 - pred_proba + 1e-32)
-        )
-        # Compute the prediction accuracy.
-        self.readouts['prediction'] = prediction = tf.round(pred_proba)
-        self.readouts['accuracy'] = tf.reduce_mean(
-            tf.cast(tf.equal(prediction, self.labels_tensor), tf.float32)
-        )
-
-
-class GenerativeAdversarialNets:
+class GenerativeAdversarialNets(MultilayerPerceptron):
     """Class to define generative adversarial networks in tensorflow.
 
     GANs are made of a generator network, which based on some input
@@ -118,98 +26,163 @@ class GenerativeAdversarialNets:
     and training procedures are then brought together so that their
     joint training may help improve performance of both networks, and
     especially that of the generator.
-
-    This class does not inherit from DeepNeuralNetwork, but mimics
-    bits of its API while not reproducing all of its functionalities.
     """
 
-    def __init__(self, generator_model, discriminator_layers):
-        """Instantiate the adversarial training instance.
+    def __init__(
+            self, input_shape, n_targets, layers_config, discr_config,
+            top_filter=None, use_dynamic=True, binary_tracks=None,
+            norm_params=None, optimizer=None
+        ):
+        """Instantiate a multilayer perceptron for regression tasks.
 
-        generator_model      : pre-instantiated DeepNeuralNetwork inheriting
-                               generative network
-        discriminator_layers : list of tuples specifying the discriminator
-                               network's fully-connected layers' architecture
+        input_shape   : shape of the input data fed to the network,
+                        of either [n_samples, input_size] shape
+                        or [n_batches, max_length, input_size],
+                        where the last axis must be fixed (non-None)
+                        (tuple, list, tensorflow.TensorShape)
+        n_targets     : number of targets to predict,
+                        notwithstanding dynamic features
+        layers_config : list of tuples specifying a layer configuration,
+                        made of a layer class (or short name), a number
+                        of units (or a cutoff frequency for filters) and
+                        an optional dict of keyword arguments
+        discr_config  : list of tuples specifying the discriminator's layers
+                        (similar format as `layers_config`)
+        top_filter    : optional tuple specifying a SignalFilter to use
+                        on top of the generator network's raw prediction
+        use_dynamic   : whether to produce dynamic features and use them
+                        when training the model (bool, default True)
+        binary_tracks : optional list of targets which are binary-valued
+                        (and should therefore not have delta counterparts)
+        norm_params   : optional normalization parameters of the targets
+                        (np.ndarray)
+        optimizer     : tensorflow.train.Optimizer instance (by default,
+                        Adam optimizer with 1e-3 learning rate)
         """
-        check_type_validity(
-            generator_model, DeepNeuralNetwork, 'generator_model'
+        # Arguments serve modularity ; pylint: disable=too-many-arguments
+        # Use the basic API init instead of that of the direct parent.
+        # pylint: disable=super-init-not-called, non-parent-init-called
+        DeepNeuralNetwork.__init__(
+            self, input_shape, n_targets, layers_config,
+            top_filter, use_dynamic, binary_tracks, norm_params,
+            discr_config=discr_config, optimizer=optimizer
         )
-        self.generator = generator_model
-        self.session = self.generator.session
-        self.discriminator = None
-        self._build_discriminator(discriminator_layers)
-        self.training_function = None
-        self._build_training_function()
-        self._initialize_model()
 
     @onetimemethod
-    def _build_discriminator(self, layers_config):
-        """Build the discriminator network."""
-        # Gather the true data and that generated by the other network.
-        true_data = self.generator.holders['targets']
-        false_data = self.generator.readouts['prediction']
-        # Concatenate both data tensors and associated sequences' lengths.
-        if len(true_data.shape) == 2:
+    def _validate_args(self):
+        """Process the initialization arguments of the instance."""
+        # Validate arguments defining the generator network.
+        super()._validate_args()
+        # Validate the discriminator network's hidden layers config.
+        check_type_validity(self.discr_config, list, 'discr_config')
+        for i, config in enumerate(self.discr_config):
+            validated = validate_layer_config(config)
+            if isinstance(get_layer_class(validated[0]), SignalFilter):
+                raise ValueError(
+                    'Discrimnator layers may not contain signal filters.'
+                )
+            self.discr_config[i] = validated
+
+    @onetimemethod
+    def _build_hidden_layers(self):
+        """Build the network's hidden layers and readouts.
+
+        The name of this private method is thus inaccurate,
+        but mandatory to preserve API standards.
+        """
+        self._build_generator()
+        self._build_discriminator()
+
+    @onetimemethod
+    def _build_generator(self):
+        """Build the layers and readouts of the generator network."""
+        super()._build_hidden_layers()
+        super()._build_readout_layer()
+        super()._build_readouts()
+
+    @onetimemethod
+    def _build_discriminator(self):
+        """Build the layers and readouts of the discriminator network."""
+        # Aggregate the generator's predictions and the true targets.
+        true_data = self.holders['targets']
+        false_data = self.readouts['prediction']
+        if len(self.input_shape) == 2:
             true_data = tf.expand_dims(true_data, 0)
             false_data = tf.expand_dims(false_data, 0)
-            sizes_tensor = [tensor_length(true_data[0])]
-        elif len(true_data.shape) == 3:
-            sizes_tensor = self.generator.holders['batch_sizes']
-        else:
-            raise TypeError(
-                "'generator' should output tensors of rank 2 or 3."
-            )
         input_tensor = tf.concat([true_data, false_data], axis=0)
-        sizes_tensor = tf.concat([sizes_tensor, sizes_tensor], axis=0)
-        # Set up the labels tensor associated with the previous.
-        labels_tensor = tf.concat([
-            tf.ones_like(true_data[:, 0, 0]), tf.zeros_like(true_data[:, 0, 0])
-        ], axis=0)
-        # Instantiate a binary sequence classifier network fed by the previous.
-        self.discriminator = Discriminator(
-            input_tensor, labels_tensor, sizes_tensor, layers_config
+        # Build the discriminator network's layers.
+        discr_layers = build_layers_stack(input_tensor, self.discr_config)
+        for name, layer in discr_layers.items():
+            self.layers['discrim_' + name] = layer
+
+
+    @onetimemethod
+    def _build_readout_layer(self):
+        """Build the discriminator network's readout layer."""
+        self.layers['discrim_readout_layer'] = DenseLayer(
+            self._top_layer.output, n_units=1, activation='sigmoid'
         )
 
     @onetimemethod
-    def _initialize_model(self):
-        """Initialize the models' weights and nodes."""
-        # Save the current state of the generator network.
-        tempfile = 'tmp_%s.npy' % int(time.time())
-        self.generator.save_model(tempfile)
-        # Initialize the discriminator, thus resetting the generator.
-        self.session.run(tf.global_variables_initializer())
-        # Restore the generator's weights. Remove its temporary dump.
-        self.generator.restore_model(tempfile)
-        os.remove(tempfile)
+    def _build_readouts(self):
+        """Build wrappers of the network's predictions and errors."""
+        # Gather the discriminator's output and the true labels tensor.
+        readout = self.layers['discrim_readout_layer'].output
+        targets = self.holders['targets']
+        batched = (len(self.input_shape) == 3)
+        labels_shape = targets[:, 0, 0] if batched else [1.]
+        labels_tensor = tf.concat([
+            tf.ones_like(labels_shape), tf.zeros_like(labels_shape)
+        ], axis=0)
+        # Build the discriminator's probability predictions.
+        if batched:
+            sizes_tensor = self.holders.get('batch_sizes')
+            sizes_tensor = tf.concat([sizes_tensor, sizes_tensor], axis=0)
+            mask = tf.sequence_mask(
+                sizes_tensor, maxlen=targets.shape[-2].value, dtype=tf.float32
+            )
+            predicted_proba = (
+                tf.reduce_sum(readout * tf.expand_dims(mask, 2), axis=1)
+                / tf.reduce_sum(mask, axis=1, keepdims=True)
+            )
+        else:
+            predicted_proba = tf.reduce_mean(readout, axis=1)
+        # Build and record the discriminator's readouts.
+        discriminator_readouts = build_binary_classif_readouts(
+            predicted_proba, tf.expand_dims(labels_tensor, 1)
+        )
+        for key, readout in discriminator_readouts.items():
+            self.readouts['discrim_' + key] = readout
 
     @onetimemethod
     def _build_training_function(self):
         """Build the adversarial training functions of the networks."""
-        rmse = tf.reduce_mean(self.generator.readouts['rmse'])
-        cross_entropy = self.discriminator.readouts['cross_entropy']
+        generat_loss = self.readouts['rmse']
+        discrim_loss = self.readouts['discrim_cross_entropy']
         # Build adversarial training functions of the two networks.
-        # Access hidden properties; pylint: disable=protected-access
         fit_discriminator = minimize_safely(
-            self.generator.optimizer, loss=cross_entropy,
-            var_list=self.discriminator._weights
+            self.optimizer, loss=discrim_loss,
+            var_list=[
+                self.get_weights(name) for name in self.layers
+                if name.startswith('discrim_')
+            ]
         )
         fit_generator = minimize_safely(
-            self.generator.optimizer, loss=rmse + (1 - cross_entropy),
-            var_list=self.generator._neural_weights
+            self.optimizer, loss=generat_loss + (1 - discrim_loss),
+            var_list=[
+                self.get_weights(name) for name, layer in self.layers.items()
+                if not name.startswith('discrim_')
+                and not isinstance(layer, SignalFilter)
+            ]
         )
-        # Add a function to optimize the generator's top filter, if any.
-        learnable_filter = (
-            self.generator.top_filter is not None
-            and self.generator.layers['top_filter'].learnable
-        )
-        if learnable_filter:
+        # Add a function to optimize the generator's filter layer(s), if any.
+        if self._filter_cutoffs:
             fit_filter = minimize_safely(
-                tf.train.AdamOptimizer(.9), loss=rmse,
-                var_list=self.generator._filter_cutoffs
+                tf.train.GradientDescentOptimizer(.9),
+                loss=generat_loss, var_list=self._filter_cutoffs
             )
             fit_generator = (fit_generator, fit_filter)
 
-        # pylint: enable=protected-access
         # Build a wrapper for the network's training functions.
         def training_function(model):
             """Return the specified training function(s)."""
@@ -225,24 +198,82 @@ class GenerativeAdversarialNets:
         # Assign the wrapper as the instance's training function.
         self.training_function = training_function
 
-    def run_training_function(self, input_data, target_data, models='both'):
+    def run_training_function(
+            self, input_data, target_data, keep_prob=1, network='both'
+        ):
         """Run a training step, fitting both networks adversarially.
 
         input_data  : input data to feed to the generator network
-        target_data : true data the generator network should produce
-        models      : str identifying the model(s) to fit, among
+        keep_prob   : probability for each unit to have its outputs used in
+                      the training procedure (float in [0., 1.], default 1.)
+        network     : str identifying the model(s) to fit, among
                       {'discriminator', 'generator', 'both'}
         """
-        feed_dict = self.generator.get_feed_dict(input_data, target_data)
-        self.session.run(self.training_function(models), feed_dict)
+        # Add an argument unneeded by parents; pylint: disable=arguments-differ
+        feed_dict = self.get_feed_dict(input_data, target_data, keep_prob)
+        self.session.run(self.training_function(network), feed_dict)
 
-    def score(self, input_data, target_data):
-        """Score both networks based on the provided data.
+    def score(self, input_data, target_data, network='generator'):
+        """Score the network(s) based on the provided data.
 
-        Return the generator's per-channel root mean square
-        prediction error and the discriminator's accuracy.
+        input_data : input data sample to evalute the model on which
+        targets    : true targets associated with the input dataset
+        network    : network(s) to score ; either 'generator',
+                     'discriminator' or 'both'
+
+        The generator's metrics include the channel-wise prediction
+        root mean square error (or binary cross-entropy, for binary
+        channels).
+        The discriminator's metric is the prediction accuracy,
+        evaluated against both the generator's predictions and
+        the true targets (i.e. balanced dataset).
         """
-        return self.session.run([
-            self.generator.readouts['rmse'],
-            self.discriminator.readouts['accuracy']
-        ], self.generator.get_feed_dict(input_data, target_data))
+        # Add an argument unneeded by parents; pylint: disable=arguments-differ
+        # Select the metric(s) to return.
+        if network == 'generator':
+            metric = self.readouts['rmse']
+        elif network == 'discriminator':
+            metric = self.readouts['discrim_accuracy']
+        elif network == 'both':
+            metric = (self.readouts['rmse'], self.readouts['discrim_accuracy'])
+        else:
+            raise KeyError("Invalid 'network' argument: '%s'." % network)
+        # Evaluate the selected metric(s).
+        feed_dict = self.get_feed_dict(input_data, target_data)
+        return self.session.run(metric, feed_dict)
+
+    def score_corpus(self, input_corpus, targets_corpus, network='generator'):
+        """Iteratively compute the network's root mean square prediction error.
+
+        input_corpus   : sequence of input data arrays
+        targets_corpus : sequence of true targets arrays
+        network        : network(s) to score ; either 'generator',
+                         'discriminator' or 'both'
+
+        Corpora of input and target data must include numpy arrays
+        of values to feed to the network and to evaluate against,
+        without any nested arrays structure.
+
+        See `score` method for details on the metrics returned
+        depending on the selected `network` argument.
+        """
+        # Add an argument unneeded by parents; pylint: disable=arguments-differ
+        # Case when scoring the generator only.
+        if network == 'generator':
+            return super().score_corpus(input_corpus, targets_corpus)
+        # Compute sample-wise scores.
+        scores = [
+            self.score(input_data, targets, network)
+            for input_data, targets in zip(input_corpus, targets_corpus)
+        ]
+        # Case when scoring the discriminator only.
+        if network == 'discriminator':
+            return np.mean(scores)
+        # Case when scoring both networks.
+        discriminator_score = np.mean([score for _, score in scores])
+        aggregate = np.array if len(self.input_shape) == 2 else np.concatenate
+        generator_score = self._reduce_sample_prediction_scores(
+            aggregate([score for score, _ in scores]),
+            self._get_corpus_sizes(input_corpus)
+        )
+        return generator_score, discriminator_score
