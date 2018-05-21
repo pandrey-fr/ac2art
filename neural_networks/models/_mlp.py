@@ -28,7 +28,7 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         input_shape   : shape of the input data fed to the network,
                         of either [n_samples, input_size] shape
                         or [n_batches, max_length, input_size],
-                        where the first may be variable (None)
+                        where the last axis must be fixed (non-None)
                         (tuple, list, tensorflow.TensorShape)
         n_targets     : number of targets to predict,
                         notwithstanding dynamic features
@@ -211,13 +211,27 @@ class MultilayerPerceptron(DeepNeuralNetwork):
         # Compute sample-wise scores.
         aggregate = np.array if len(self.input_shape) == 2 else np.concatenate
         scores = aggregate([
-            np.square(self.score(input_data, targets))
+            self.score(input_data, targets)
             for input_data, targets in zip(input_corpus, targets_corpus)
         ])
         # Gather samples' lengths.
         sizes = self._get_corpus_sizes(input_corpus)
         # Reduce scores and return them.
-        return np.sqrt(np.sum(scores * sizes, axis=0) / sizes.sum())
+        return self._reduce_sample_prediction_scores(scores, sizes)
+
+    def _reduce_sample_prediction_scores(self, scores, sample_sizes):
+        """Aggregate sample-wise prediction errors."""
+        # Compute the square of sample-wise root mean square error terms.
+        binary = tuple() if self.binary_tracks is None else self.binary_tracks
+        non_binary = [i for i in range(self.n_targets) if i not in binary]
+        scores[:, non_binary] = np.square(scores[:, non_binary])
+        # Compute the weighted average of channel-wise scores.
+        scores = np.sum(scores * sample_sizes, axis=0) / sample_sizes.sum()
+        # Root scale mean squared error terms.
+        scores[non_binary] = np.sqrt(scores[non_binary])
+        # Return the corpus-wise scores.
+        return scores
+
 
     def _get_corpus_sizes(self, corpus):
         """Return an array gathering the lengths of a corpus' sequences.
