@@ -117,15 +117,21 @@ class DeepNeuralNetwork(metaclass=ABCMeta):
             for name, layer in self.layers.items()
         }
 
+    def get_weights(self, layer_name):
+        """Return the tensor(s) of weights of a layer of given name."""
+        layer = self.layers[layer_name]
+        if isinstance(layer, SignalFilter):
+            return layer.cutoff
+        elif isinstance(layer, AbstractRNN) or layer.bias is None:
+            return layer.weights
+        return layer.weights
+
     @property
     def _neural_weights(self):
         """Return the weight and biases tensors of all neural layers."""
-        classes = (AbstractRNN, DenseLayer)
         return [
-            layer.weights if (
-                isinstance(layer, AbstractRNN) or layer.bias is None
-            ) else (layer.weights, layer.bias)
-            for layer in self.layers.values() if isinstance(layer, classes)
+            self.get_weights(name) for name, layer in self.layers.items()
+            if isinstance(layer, (AbstractRNN, DenseLayer))
         ]
 
     @property
