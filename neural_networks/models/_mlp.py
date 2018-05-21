@@ -16,7 +16,27 @@ from utils import raise_type_error, onetimemethod
 
 
 class MultilayerPerceptron(DeepNeuralNetwork):
-    """Class implementing the multilayer perceptron for regression."""
+    """Class implementing the multilayer perceptron for regression.
+
+    Note that strictly speaking, this class implements more than
+    the sole Multilayer Perceptron: RNN units may be used (as well
+    as signal filters), and mixed tasks of regression and binary
+    classification may be specified.
+
+    This is basically a framework for defining end-to-end models
+    comprising feed-forward layers and recurrent units (note that
+    other kinds of layers may be added as well through the parent
+    abstract `DeepNeuralNetwork` class) for tasks of (channel-wise)
+    regression and/or binary classification.
+
+    The implementation tends to be general, but echoes the fact
+    that it was developed for acoustic-to-articulatory inversion
+    purposes, thus adopting certain choices that may not be fit
+    for other contexts. Additionally, given details were guided
+    by the implementation of other models (inheriting from this
+    class), thus causing design choices that may seem odd when
+    considered out of context.
+    """
 
     def __init__(
             self, input_shape, n_targets, layers_config, top_filter=None,
