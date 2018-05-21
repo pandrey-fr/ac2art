@@ -36,7 +36,7 @@ class AutoEncoder(MultilayerPerceptron):
         input_shape    : shape of the input data fed to the network,
                          of either [n_samples, input_size] shape
                          or [n_batches, max_length, input_size],
-                         where the first may be variable (None)
+                         where the last axis must be fixed (non-None)
                          (tuple, list, tensorflow.TensorShape)
         n_targets      : number of targets to predict,
                          notwithstanding dynamic features
@@ -60,7 +60,7 @@ class AutoEncoder(MultilayerPerceptron):
         a number of units (or a cutoff frequency for filters) and an
         optional dict of keyword arguments.
 
-        Readout layer are automatically added between the encoder and
+        Readout layers are automatically added between the encoder and
         decoder parts, and on top of the latter. They are fully-connected
         layers with identity activation.
         """
@@ -93,7 +93,7 @@ class AutoEncoder(MultilayerPerceptron):
 
     @onetimemethod
     def _validate_args(self):
-        """Docstring."""
+        """Process the initialization arguments of the instance."""
         # Validate arguments that do not define the model's layers.
         super()._validate_args()
         # Check input_shape and use_dynamic parameters' compatibility.
@@ -196,7 +196,6 @@ class AutoEncoder(MultilayerPerceptron):
     @onetimemethod
     def _build_readouts(self):
         """Build wrappers of the network's predictions and errors."""
-        # Build wrappers aggregating predictions and scores of the model.
         self.readouts['rmse'] = tf.concat([
             self.readouts['encoder_rmse'], self.readouts['decoder_rmse']
         ], axis=-1)
