@@ -42,9 +42,9 @@ def build_normalization_functions(corpus):
         """Normalize pre-extracted {0} data of a given type.
 
         Normalization includes de-meaning and division by either
-        four standard-deviations or the difference between the
-        extremum points (distribution spread). Those parameters
-        may either be file-wise, speaker-wise or corpus-wide.
+        standard-deviation or the difference between the extremum
+        points (distribution spread). Those parameters may either
+        be computed file-wise, speaker-wise or corpus-wide.
 
         file_type  : one of {{'ema', 'energy', 'lpc', 'lsf', 'mfcc'}}
         norm_type  : normalization divisor to use ('spread' or 'stds')
@@ -170,7 +170,7 @@ def _corpus_wide_normalize(
     else:
         moments = compute_moments(file_type, by_speaker=True)[speaker]
     means = moments['global_means']
-    norm = moments['global_%s' % norm_type] * (4 if norm_type == 'stds' else 1)
+    norm = moments['global_%s' % norm_type]
     # Iteratively normalize the utterances.
     normalize = lambda utterance: (utterance - means) / norm
     norm_name = norm_type + ('' if speaker is None else '_byspeaker')
@@ -186,7 +186,7 @@ def _file_wise_normalize(
     """Normalize a corpus using file-specific parameters."""
     # Define a file-wise normalization function.
     if norm_type == 'stds':
-        get_norm = lambda utt: 4 * utt.std(axis=0)
+        get_norm = lambda utt: utt.std(axis=0)
     elif norm_type == 'spread':
         get_norm = lambda utt: (utt.max(axis=0) - utt.min(axis=0))
     else:
