@@ -1,0 +1,11 @@
+{
+  "abxpy_folder": "some_path/ABXpy/ABXpy/",
+  "kaldi_folder": "some_path/kaldi/",
+  "mngu0_raw_folder": "path_to_raw_mngu0_data",
+  "mngu0_processed_folder": "path_to_preprocessed_mngu0_data",
+  "mocha_raw_folder": "path_to_raw_mocha_data",
+  "mocha_processed_folder": "path_to_preprocessed_mocha_data",
+  "mspka_raw_folder": "path_to_raw_mspka_data",
+  "mspka_processed_folder": "path_to_preprocessed_mspka_data",
+  "symbols_file": "path_to_code_folder/phone_symbols.csv"
+}
