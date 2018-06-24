@@ -1,8 +1,9 @@
-# User-specific file.
+# User-specific configuration file.
 config.json
 
 # Models and data dumps.
 *.npy
+*.log
 
 # Python cache files.
 __pycache__/
