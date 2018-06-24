@@ -190,6 +190,9 @@ def batch_to_sequences(batch, batch_sizes):
     batch_sizes : list of true lengths of the batched sequences
                   (i.e. notwithstanding zero padding)
     """
-    return np.array([
+    sequences = np.array([
         sequence[:batch_sizes[i]] for i, sequence in enumerate(batch)
     ])
+    if batch.shape[0] == 1:
+        sequences = sequences[0]
+    return sequences
