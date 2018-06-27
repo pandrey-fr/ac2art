@@ -89,7 +89,10 @@ class NeuralNetwork(metaclass=ABCMeta):
         dot syntax.
         """
         if not hasattr(self, '_init_arguments'):
-            raise AttributeError("'%s' object has no attribute '%s'.")
+            raise AttributeError(
+                "'%s' object has no attribute '%s'."
+                % (self.__class__.__name__, name)
+            )
         if name in self._init_arguments.keys():
             return self._init_arguments[name]
         else:
