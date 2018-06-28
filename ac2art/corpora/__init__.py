@@ -22,24 +22,50 @@ at the root of the package.
 
 
 Each corpus's submodule consists in multiple units of code, which
-respect the following mandatory structure of implemented functions
-(and may add some internal dependency functions):
+respect the following mandatory structure of implemented functions,
+may add some internal dependency functions, and heavily rely on the
+use of functions contstructor implemented in the `prototype` submodule:
 
 
 `ac2art.corpora.<corpus>.abkhazia`
+    copy_wavs
+    get_transcription
+    (the last one may wrap `prototype.utils.read_transcript`)
+
 `ac2art.corpora.<corpus>.raw`
+    get_utterances_list
+    load_wav
+    load_phone_labels
+    load_ema
+    load_voicing
+    (the latter two are built using `prototype.raw.build_ema_loaders`)
+
 `ac2art.corpora.<corpus>.preprocess`
+    extract_utterances_data
+    compute_moments
+    normalize_files
+    split_corpus
+    (all built using `prototype.preprocess` functions)
+
 `ac2art.corpora.<corpus>.load`
+    change_loading_setup
+    get_loading_setup
+    get_norm_parameters
+    get_utterances
+    load_acoustic
+    load_ema
+    load_utterance
+    load_dataset
+    (all built using `prototype.load.build_loading_functions`)
+
 `ac2art.corpora.<corpus>.abx`
-
-
-`ac2art.corpora.prototype` mirrors the last four points of this
-structure, and adds a `utils` submodule made of locally-relevant
-tools, such as some generic data loaders. It otherwise implements
-functions-defining functions which may be used to create the large
-majority of the mandatory functions for each corpus, ensuring that
-they behave accordingly to both the defined data processing API and
-the corpus's specificities.
+    extract_h5_features
+    (built with `prototype.abx.build_h5features_extractor`)
+    abx_from_features
+    make_abx_task
+    make_itemfile
+    load_abx_scores
+    (all built with `prototype.abx.build_abxpy_callers`)
 
 
 To add support for a corpus, one should thus implement the necessary
@@ -52,7 +78,13 @@ Note that for the mocha and mspka corpora, adding support to
 data from additional recording sessions / speakers should be
 straight-forward, requiring only to edit the list of speakers
 in `ac2art.corpora.<corpus>.raw._loaders.py` (SPEAKERS) constant.
-""" # FIXME: complete and pass to a .md file, then load it here
+
+
+Also note that for these same two corpora, enhanced versions of
+the phone labels files must be use so as to compute MFCC features
+using abkhazia. They must thus be downloaded and placed in the
+folder of processed data, under the 'labels' subfolder.
+"""
 
 
 from . import prototype

@@ -1,20 +1,32 @@
-[Basic API]
+### The NeuralNetwork API
 
-* Initialization and layers configuration (Basic API, 1/3)
+#### Basic user-oriented API
 
-- An `__init__` method allows the user to fully configure the
-  network's architecture and specificities, noticeably through
-  the `layers_config` argument presented below. The `__init__`
-  is further discussed in the "Network building" section.
+This section presents the public methods inherited from the
+`NeuralNetwork` class that should be used to build, train,
+use and save models.
 
-- The `layers_config` argument used at the initialization step
-  fully specifies the network's hidden layers stack, and should
-  do so in any subclass. Subclasses should in turn specify the
-  readout layer, the algorithm generating a prediction out of
-  it and the training function(s) used to fit the model.
+**Initialization: layers configuration and data shape (Basic API, 1/3)**
 
-- The structure of `layers_config` is rather straight-forward: it
-  consists of a list of tuples, each of which specifies a layer of
+Parameters of the instanciation method inherited from NeuralNetwork
+(then enhanced to suit the specificities of the various models) make
+the networks' input shape, stack of hidden layers and output shape
+fully modular.
+
+- The `input_shape` parameter is two-fold: its sets up the input
+  vectors' dimension, but also allows to make the network suitable
+  for batch learning. To compute batches of 1-D input vectors, set
+  up the argument to `(None, input_length)`. Note that his also allows
+  to process single time series of input vectors. To process such time
+  series by batches of free size, concatenating series of variable
+  length, set up the argument to `(None, None, input_length)`.
+
+    _Note that batching the inputs is done by the model: passing
+  a sequence (list, array, tuple...) of 2-D arrays is sufficient._
+
+- The `layers_config` argument fully specifies the network's hidden
+  layers stack. The structure of `layers_config` is rather straight-forward:
+  it consists of a list of tuples, each of which specifies a layer of
   the network, ordered from input to readout and stacked on top of
   each other. These layers may either be an actual neural layer, a
   stack of RNN layers or a signal filtering process. Each layer is
@@ -23,27 +35,58 @@
   signal filters) and an optional dict of keyword arguments used
   to instantiate the layer.
 
+- The `top_filter` argument allows to specify an additional signal
+  filter on top of the readout layer. This is useful when processing
+  time sequences of input vectors, and thus relevant for learning
+  acoustic-to-articulatory inversion. This argument should be a tuple
+  similar to those listed in `layers_config`.
 
-* Training, predicting and scoring methods (Basic API, 2/3)
+- The `n_targets` argument is an integer equal to the length
+  of the (time-wise) output vectors. Additional modularity is
+  provided by the `use_dynamic` argument, which adds delta and
+  deltadelta features to these dimensions, and by the `binary_tracks`
+  one, which allows to designate given dimensions of the output
+  as binary values instead of continuous ones: these values will
+  have their own readout layer parallel to that of the others on
+  top of the shared stack of hidden layers, their own loss function
+  (minimized jointly with that of the continuous targets) and will
+  of course not be taken into account when computing delta features.
+
+
+**Training, predicting and scoring methods (Basic API, 2/3)**
 
 - The `run_training_function` should be used to train the model.
-  It requires both some input data and the associated targets to
-  run. Additionally, the `keep_prob` argument may be set to any
-  float between 0 and 1 to use dropout when training the layers.
-  Note that by default, all dense layers are set to be affected
-  by this dropout, with a shared probability parameter ; this may
+  To be more precise, it triggers a single training epoch, based
+  on both some input data and the associated targets to run. For
+  some models, an additional `loss` parameter allows to choose
+  between multiple loss functions to backpropagate on. For all
+  models, the `keep_prob` argument may be set to any float
+  between 0 and 1 to use dropout when training the layers.
+  Note that by default, all layers are set to be affected
+  by dropout, with a shared probability parameter ; this may
   be changed by explicitly setting 'keep_prob' to None in these
-  layers' keyword arguments dict in `layers_config` at `__init__`.
+  layers' keyword arguments dict in `layers_config` at instanciation.
 
-- The `predict` method requires only input data and returns the
-  network's prediction as a numpy.array.
+- The `predict` method requires only some input data and returns
+  the network's prediction as a numpy.ndarray. For batched inputs,
+  a flat array of arrays is returned, with each of the latter
+  recording the prediction associated with an input vector (in the
+  same order as provided).
 
 - The `score` method returns a subclass-specific evaluation metric
   of the model's outputs based on some input data and the target
-  values associated with it.
+  values associated with it. For models designed to process batches
+  of input vectors, using this method on such a batch will have the
+  model return sequence-wise metrics.
+
+- The `score_corpus` method is similar to the `score` one, but is
+  applied to sequences of input vectors (which may not be batched)
+  and synthetised on the overall. Note that one can pass an iterable
+  that reads the data on the go to this function, e.g. to compute
+  synthetic metrics on a corpus too large to fit in memory.
 
 
-* Saving, restoring and resetting the model (Basic API, 3/3)
+**Saving, restoring and resetting the model (Basic API, 3/3)**
 
 - The `save_model` method allows to save the network's weights as
   well as its full specification to a simple .npy file. The stored
@@ -56,10 +99,11 @@
   model.
 
 - The `reset_model` method may be used at any moment to reset the
-  model's weights to their initial (randomized) value.
+  model's weights to a randomized value, as if newly initialized.
 
 
-[Network building]
+
+#### NeuralNetwork API for developers
 
 Apart from designing some common arguments, the `__init__` method
 includes both an arguments-processing procedure which enables its
@@ -70,7 +114,7 @@ called more than once. This section aims at presenting the design
 of these hidden methods, some of which are meant to be overridden
 by subclasses.
 
-* Setting up the network's basics and hidden stack (Network building, 1/2)
+**Setting up the network's basics and hidden stack (Network building, 1/2)**
 
 - The `_validate_args` method is first run to ensure that all
   arguments provided to instantiate a network are of expected
@@ -95,7 +139,7 @@ by subclasses.
   layers are stored in the `layers` OrderedDict attribute.
 
 
-* From readouts to training - abstract methods (Network building, 2/2)
+**From readouts to training - abstract methods (Network building, 2/2)**
 
 - The `_build_readout_layer` is an abstract method that needs
   implementing by subclasses. It should design the network's final
