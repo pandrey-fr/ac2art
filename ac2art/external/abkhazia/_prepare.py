@@ -40,7 +40,7 @@ def prepare_abkhazia_corpus(
             os.makedirs(folder)
     # Gather dependency functions.
     copy_wavs, get_transcription = import_from_string(
-        'data.%s.abkhazia._loaders' % corpus,
+        'ac2art.corpora.%s.abkhazia._loaders' % corpus,
         ['copy_wavs', 'get_transcription']
     )
     # Copy wav files to the data folder and gather the utterances list.
