@@ -106,7 +106,6 @@ def build_features_extraction_functions(
             end_time = time.asctime().split(' ')[-2]
             print('%s : Done with utterance %s.' % (end_time, utterance))
             sys.stdout.write('\033[F')
-        # FIXME: run over produced files to harmonize their lengths
         # Record the list of articulators.
         path = os.path.join(
             CONSTANTS['%s_processed_folder' % corpus], 'ema', 'articulators'
@@ -210,9 +209,9 @@ def build_extractor(corpus, initial_sampling_rate):
         return start_frame, end_frame
 
     def extract_ema(
-            utterance, start_frame, end_frame, sampling_rate, articulators
+            utterance, sampling_rate, articulators
         ):
-        """Extract the EMA data associated with an utterance."""
+        """Extract and return the EMA data associated with an utterance."""
         nonlocal initial_sampling_rate, load_ema, new_folder
         # Load EMA data and interpolate NaN values using cubic splines.
         ema, _ = load_ema(utterance, articulators)
@@ -224,44 +223,21 @@ def build_extractor(corpus, initial_sampling_rate):
         if sampling_rate != initial_sampling_rate:
             ratio = sampling_rate / initial_sampling_rate
             ema = scipy.signal.resample(ema, num=int(len(ema) * ratio))
-        # Trim edge silences from EMA data and save it.
-        ema = ema[start_frame:end_frame]
-        np.save(os.path.join(new_folder, 'ema', utterance + '_ema.npy'), ema)
-
-    def extract_voicing(utterance, start_frame, end_frame, sampling_rate):
-        """Generate and save binary voicing data based on tracks labelling."""
-        nonlocal load_voicing, new_folder
-        voicing = load_voicing(utterance, sampling_rate)[start_frame:end_frame]
-        path = os.path.join(new_folder, 'voicing', utterance + '_voicing.npy')
-        np.save(path, voicing)
+        # Return the EMA data.
+        return ema
 
     def extract_audio(
-            utterance, start_frame, end_frame, abkhazia_mfcc,
-            audio_forms, n_coeff, sampling_rate, frames_time
+            utterance, audio_forms, n_coeff, sampling_rate, frames_time
         ):
-        """Generate (or adjust) and save speech features for an utterance."""
+        """Generate and return speech features for an utterance."""
         # Wrapped function; pylint: disable=too-many-arguments
         nonlocal corpus, load_wav, new_folder
-        # Trim silences from abkhazia-produced mfcc features. Rename files.
-        if abkhazia_mfcc:
-            path = os.path.join(new_folder, 'mfcc', utterance)
-            mfcc = np.load(path + '.npy')
-            mfcc = mfcc[start_frame:end_frame]
-            np.save(path + '_mfcc.npy', mfcc)
-            os.remove(path + '.npy')
-        # Produce other audio forms, if any.
-        if audio_forms:
-            # Load the audio waveform data as a Wav object.
-            wav = load_wav(
-                utterance, frames_time, hop_time=(1000 / sampling_rate)
-            )
-            # Iterativley produce, adjust and save sets of features.
-            for name, n_feat in zip(audio_forms, n_coeff):
-                get_audio = getattr(wav, 'get_' + name.strip('_'))
-                audio = get_audio(n_feat, static_only=False)
-                audio = audio[start_frame:end_frame]
-                path = os.path.join(new_folder, name, utterance)
-                np.save(path + '_%s.npy' % name, audio)
+        hop_time = (1000 / sampling_rate)
+        wav = load_wav(utterance, frames_time, hop_time)
+        return {
+            name: wav.get(name.strip('_'), n_feat, static_only=False)
+            for name, n_feat in zip(audio_forms, n_coeff)
+        }
 
     def extract_data(
             utterance, audio_forms, n_coeff, abkhazia_mfcc,
@@ -270,15 +246,40 @@ def build_extractor(corpus, initial_sampling_rate):
         """Extract acoustic and articulatory data of a given utterance."""
         # Wrapped function; pylint: disable=too-many-arguments
         nonlocal load_wav, new_folder
+        nonlocal extract_audio, extract_ema, get_boundaries
+        # Generate or load all kinds of features for the utterance.
+        data = extract_audio(
+            utterance, audio_forms, n_coeff, sampling_rate, frames_time
+        )
+        data['ema'] = extract_ema(utterance, sampling_rate, articulators)
+        data['voicing'] = load_voicing(utterance, sampling_rate)
+        if abkhazia_mfcc:
+            path = os.path.join(new_folder, 'mfcc', utterance + '.npy')
+            data['mfcc'] = np.load(path)
+        # Fit the edge silences trimming values.
         start_frame, end_frame = get_boundaries(utterance, sampling_rate)
-        extract_ema(
-            utterance, start_frame, end_frame, sampling_rate, articulators
-        )
-        extract_voicing(utterance, start_frame, end_frame, sampling_rate)
-        extract_audio(
-            utterance, start_frame, end_frame, abkhazia_mfcc,
-            audio_forms, n_coeff, sampling_rate, frames_time
-        )
+        original_end = end_frame
+        for name, array in data.items():
+            length = len(array)
+            if length < start_frame:
+                raise ValueError(
+                    "Utterance '%s': '%s' features are shorter than the"
+                    "expected start trimming zone." % (utterance, name)
+                )
+            if length < original_end:
+                print(
+                    "Utterance '%s': '%s' features are shorter than expected"
+                    "(%s vs %s).\nAll features will be trimmed to fit."
+                    % (utterance, name, length, original_end)
+                )
+                if length < end_frame:
+                    end_frame = length
+        # Trim and save all features sets to disk.
+        for name, array in data.items():
+            path = os.path.join(
+                new_folder, name, utterance + '_' + name + '.npy'
+            )
+            np.save(path, array[start_frame:end_frame])
 
     # Return the previous last function.
     return extract_data

@@ -55,6 +55,19 @@ class Wav:
         """Return the waveform's duration in seconds."""
         return len(self) / self.sampling_rate
 
+    def get(self, features, n_coeff, static_only):
+        """Wrap the call to any features-producing method.
+
+        features    : kind of features to produce
+                      (will call self.get_`features`)
+        n_coeff     : number of coefficients to produce
+        static_only : whether to return the sole static features
+                      instead of adding delta and deltadelta ones
+        """
+        check_type_validity(features, str, 'features')
+        method = getattr(self, 'get_' + features)
+        return method(n_coeff, static_only)
+
     def get_mfcc(self, n_coeff=13, static_only=False):
         """Return Mel-frequency cepstral coefficients for each audio frame.
 
