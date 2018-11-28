@@ -76,12 +76,7 @@ def refine_signal(
     add_dynamic   : whether to add delta and deltadelta features
                     to the refined signal (bool, default False)
     """
-    if int(tf.VERSION.split('.')[1]) >= 4:
-        tf.assert_rank_in(signal, (2, 3))
-    else:
-        rank = tf.rank(signal)
-        tf.assert_greater(rank, 3)
-        tf.assert_less(rank, 4)
+    tf.assert_rank_in(signal, (2, 3))
     # Optionally de-normalize the initial signal.
     if norm_params is not None:
         signal *= norm_params

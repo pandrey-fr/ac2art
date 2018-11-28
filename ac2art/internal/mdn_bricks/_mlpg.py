@@ -32,9 +32,11 @@ def mlpg_from_gaussian_mixture(
     order ones.
     """
     # Test arguments validity.
-    tf.assert_rank(priors, 2)
-    tf.assert_rank(means, 3)
-    tf.assert_rank(stds, 3)
+    tf.control_dependencies([
+        tf.assert_rank(priors, 2),
+        tf.assert_rank(means, 3),
+        tf.assert_rank(stds, 3)
+    ])
     check_positive_int(n_steps, 'n_steps')
 
     # Set up the expectation step function.
@@ -109,10 +111,12 @@ def mlpg_from_gaussian(means, stds, weights):
     the delta delta features.
     """
     # Test arguments' rank validity.
-    tf.assert_rank(means, 2)
-    tf.assert_rank(stds, 2)
-    tf.assert_rank(weights, 2)
-    tf.assert_equal(means.shape[1], stds.shape[1])
+    tf.control_dependencies([
+        tf.assert_rank(means, 2),
+        tf.assert_rank(stds, 2),
+        tf.assert_rank(weights, 2),
+        tf.assert_equal(means.shape[1], stds.shape[1])
+    ])
     # Pile up the static and dynamic parameters.
     n_targets = means.shape[1].value // 3
     means = _reshape_moments_tensor(means, n_targets)
@@ -153,9 +157,11 @@ def mlpg_univariate(means, stds, weights):
     delta delta features parameters.
     """
     # Test arguments' rank validity.
-    tf.assert_rank(means, 1)
-    tf.assert_rank(stds, 1)
-    tf.assert_rank(weights, 2)
+    tf.control_dependencies([
+        tf.assert_rank(means, 1),
+        tf.assert_rank(stds, 1),
+        tf.assert_rank(weights, 2)
+    ])
     # Compute the terms of the parameters generation system.
     inv_stds = tf.matrix_diag(1 / (tf.square(stds) + 1e-30))
     timed_variance = tf.matmul(tf.matrix_transpose(weights), inv_stds)

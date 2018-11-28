@@ -35,7 +35,7 @@ def batch_tensor_mean(tensor, batch_sizes):
     Return a tensor of rank `tf.rank(tensor) - 1`
     recording sequence-wise tensor means.
     """
-    tf.assert_greater(tf.rank(tensor), 1)
+    tf.assert_rank_at_least(tensor, 1)
     tf.assert_rank(batch_sizes, 1)
     maxlen = tensor.shape[1].value
     mask = tf.sequence_mask(batch_sizes, maxlen=maxlen, dtype=tf.float32)

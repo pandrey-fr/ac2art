@@ -50,17 +50,12 @@ def gaussian_mixture_density(data, priors, means, stds):
     of a single sequence (rank in [1, 2]), or a 2-D Tensor gathering
     sequence-wise point-wise density for batched data (rank 3).
     """
-    # Check ranks validity.
-    if int(tf.VERSION.split('.')[1]) >= 4:
-        tf.assert_rank_in(data, [1, 2, 3])
-    else:
-        rank = tf.rank(data)
-        tf.assert_greater_equal(rank, 1)
-        tf.assert_less_equal(rank, 3)
+    tf.assert_rank_in(data, [1, 2, 3])
     rank = tf.rank(data) + 1
-    tf.assert_rank(priors, tf.maximum(2, rank - 1))
-    tf.assert_rank(means, rank)
-    tf.assert_rank(stds, rank)
+    tf.control_dependencies([
+        tf.assert_rank(priors, tf.maximum(2, rank - 1)),
+        tf.assert_rank(means, rank), tf.assert_rank(stds, rank)
+    ])
     # Handle the univariate density case.
     if len(data.shape) == 1 or data.shape[1].value == 1:
         return tf.reduce_sum(
