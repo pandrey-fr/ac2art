@@ -250,10 +250,9 @@ def setup_activation_function(activation):
         return get_object(
             activation, ACTIVATION_FUNCTIONS, 'activation function'
         )
-    elif inspect.isfunction(activation):
+    if inspect.isfunction(activation):
         return activation
-    else:
-        raise TypeError("'activation' should be a str or a function.")
+    raise TypeError("'activation' should be a str or a function.")
 
 
 def setup_rnn_cell_type(cell_type):
@@ -268,11 +267,11 @@ def setup_rnn_cell_type(cell_type):
         return get_object(
             cell_type, RNN_CELL_TYPES, 'RNN cell type'
         )
-    elif issubclass(cell_type, tf.nn.rnn_cell.RNNCell):
+    if issubclass(cell_type, tf.nn.rnn_cell.RNNCell):
         return cell_type
     raise TypeError(
         "'cell_type' is not a tensorflow.nn.rnn_cell.RNNCell subclass."
-        )
+    )
 
 
 def sinc(tensor):

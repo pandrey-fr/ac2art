@@ -79,10 +79,9 @@ def get_layer_class(layer_class):
     """
     if isinstance(layer_class, str):
         return get_object(layer_class, LAYER_CLASSES, 'layer class')
-    elif issubclass(layer_class, (AbstractRNN, DenseLayer, SignalFilter)):
+    if issubclass(layer_class, (AbstractRNN, DenseLayer, SignalFilter)):
         return layer_class
-    else:
-        raise TypeError("'layer_class' should be a str or an adequate class.")
+    raise TypeError("'layer_class' should be a str or an adequate class.")
 
 
 def validate_layer_config(config):

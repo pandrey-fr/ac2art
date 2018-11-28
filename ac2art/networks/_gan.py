@@ -188,12 +188,11 @@ class GenerativeAdversarialNets(MultilayerPerceptron):
             """Return the specified training function(s)."""
             if model == 'discriminator':
                 return fit_discriminator
-            elif model == 'generator':
+            if model == 'generator':
                 return fit_generator
-            elif model == 'both':
+            if model == 'both':
                 return (fit_discriminator, fit_generator)
-            else:
-                raise KeyError("Invalid model key: '%s'." % model)
+            raise KeyError("Invalid model key: '%s'." % model)
 
         # Assign the wrapper as the instance's training function.
         self.training_function = training_function

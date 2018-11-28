@@ -197,10 +197,9 @@ class MixtureDensityNetwork(MultilayerPerceptron):
             nonlocal minimize_rmse
             if loss == 'likelihood':
                 return maximize_likelihood
-            elif loss == 'rmse':
+            if loss == 'rmse':
                 return minimize_rmse
-            else:
-                raise ValueError("Unknown loss quantity '%s'." % loss)
+            raise ValueError("Unknown loss quantity '%s'." % loss)
 
         # Assign the network's train step function.
         self.training_function = train_step
@@ -275,7 +274,7 @@ class MixtureDensityNetwork(MultilayerPerceptron):
         check_type_validity(loss, str, 'loss')
         if loss == 'rmse':
             return super().score_corpus(input_corpus, targets_corpus)
-        elif loss != 'likelihood':
+        if loss != 'likelihood':
             raise ValueError("Unknown loss quantity: '%s'.")
         # Handle the likelihood metric case.
         # Compute sample-wise likelihoods.

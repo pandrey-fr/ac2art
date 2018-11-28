@@ -64,7 +64,7 @@ def build_h5features_extractor(corpus):
                     pred = inverter.predict(load_audio(utterance))
                     return pred if len(inverter.input_shape) == 2 else pred[0]
                 return invert_features
-            elif ema_features is None:
+            if ema_features is None:
                 return load_audio
         # Build the articulatory features loading function.
         if ema_features is not None:
@@ -144,6 +144,7 @@ def build_abxpy_callers(corpus):
       - make_itemfile
       - load_abx_scores
     """
+    # pylint: disable=too-many-statements
     # Load dependency path and function.
     abx_folder = os.path.join(CONSTANTS['%s_processed_folder' % corpus], 'abx')
     get_utterances = import_from_string(

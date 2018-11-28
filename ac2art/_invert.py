@@ -63,7 +63,7 @@ def _read_features(source):
     if os.path.isdir(source):
         return _read_npy_files(source)
     # Handle the case of single ark, scp or ark-like txt file.
-    elif os.path.isfile(source):
+    if os.path.isfile(source):
         return read_ark_file(source)
     # Raise exception if the referred source does not exist.
     raise FileNotFoundError(

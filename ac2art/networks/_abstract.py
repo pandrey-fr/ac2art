@@ -95,11 +95,10 @@ class NeuralNetwork(metaclass=ABCMeta):
             )
         if name in self._init_arguments.keys():
             return self._init_arguments[name]
-        else:
-            raise AttributeError(
-                "'%s' object has no attribute '%s' nor initialization "
-                "argument of such name" % (self.__class__.__name__, name)
-            )
+        raise AttributeError(
+            "'%s' object has no attribute '%s' nor initialization "
+            "argument of such name" % (self.__class__.__name__, name)
+        )
 
     @property
     def architecture(self):
@@ -120,7 +119,7 @@ class NeuralNetwork(metaclass=ABCMeta):
         layer = self.layers[layer_name]
         if isinstance(layer, SignalFilter):
             return layer.cutoff
-        elif isinstance(layer, AbstractRNN) or layer.bias is None:
+        if isinstance(layer, AbstractRNN) or layer.bias is None:
             return layer.weights
         return layer.weights
 

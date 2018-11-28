@@ -106,7 +106,7 @@ def build_utterances_getter(get_speaker_utterances, speakers, corpus):
                 utterance for speaker in speakers
                 for utterance in get_speaker_utterances(speaker)
             ]
-        elif speaker in speakers:
+        if speaker in speakers:
             return get_speaker_utterances(speaker)
         raise KeyError("Invalid speaker: '%s'." % speaker)
     # Adjust the function's docstring and return it.
