@@ -79,7 +79,7 @@ def build_h5features_extractor(corpus):
                 def invert_features(utterance):
                     """Return the features inverted from an utterance."""
                     pred = inverter.predict(load_audio(utterance))
-                    return pred if len(inverter.input_shape) == 2 else pred[0]
+                    return pred
                 return invert_features
             if ema_features is None:
                 return load_audio
