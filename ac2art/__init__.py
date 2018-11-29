@@ -42,3 +42,6 @@ from . import internal
 from . import corpora
 from . import networks
 from ._invert import run_inversion
+
+
+__version__ = '0.1'
