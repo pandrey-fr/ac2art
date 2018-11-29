@@ -32,14 +32,14 @@ class Installer(install):
     def run(self):
         """Run the pre-installation tests, then the installation."""
         preinstall_checks()
-        install.run(self)
+        self.do_egg_install()
 
 
 setuptools.setup(
     name='ac2art',
     version='0.1',
-    packages=['ac2art'],
-    package_data={'taquet': ['config.json', 'phone_symbols.csv']},
+    packages=setuptools.find_packages(),
+    package_data={'ac2art': ['../config.json', '../phone_symbols.csv']},
     include_package_data=True,
     author='Paul Andrey',
     description='acoustic-to-articulatory inversion using neural networks',
