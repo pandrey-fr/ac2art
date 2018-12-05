@@ -1,28 +1,19 @@
-"""Set of classes implementing various types of neural networks.
-#
-# Copyright 2018 Paul Andrey
-#
-# This file is part of ac2art.
-#
-# ac2art is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# ac2art is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with ac2art.  If not, see <http://www.gnu.org/licenses/>.
+### The `ac2art.networks` module.
 
+This document introduces the list of implemented classes to define
+architectures of neural networks for acoustic-to-articulatory inversion.
+For details on how to build, save, restore, train and use the models,
+please refer to the NeuralNetwork API documentation, presented in the
+`network_api_doc.md` file.
+
+#### Available model classes
 
 The implemented classes are the following:
 
 * `NeuralNetwork` is an abstract class defining a common API and
 implementing key bricks to build neural networks. Details on the
-API are provided in a separate documentation markdown file.
+API are provided in the separate `network_api_doc.md` file, which any
+user should take time reading.
 
 
 * `MultilayerPerceptron` is the base class for end-to-end models ;
@@ -42,7 +33,7 @@ complex prediction function than the one implemented in the base
 class, which supposedly should take time dependencies into account
 when run over a time sequence of data points.
 
-_Note: the current implementation is unexpectedly unstable, and
+ _Note: the current implementation is unexpectedly unstable, and
 has never yielded satisfactory performance in regard with what is
 reported in the litterature, although it seems to be a correct
 as to the algorithms used._
@@ -60,7 +51,7 @@ its loss function with the ability of another network to separate
 its outputs from the true outputs associated with the input data.
 Both models are trained jointly, and therefore against each other.
 
-_Note: the current implementation is not satisfactory and should
+ _Note: the current implementation is not satisfactory and should
 be revised, noticeably as to the combining of the two networks'
 loss functions._
 
@@ -68,11 +59,3 @@ loss functions._
 Additionally, the `load_dumped_model` function allows to restore
 any model previously dumped to a .npy file using the `save_model`
 which is inherited from the abstract `NeuralNetwork` class.
-"""
-
-from._abstract import NeuralNetwork, load_dumped_model
-from ._mlp import MultilayerPerceptron
-from ._mdn import MixtureDensityNetwork
-from ._tmdn import TrajectoryMDN
-from ._autoencoder import AutoEncoder
-from ._gan import GenerativeAdversarialNets
