@@ -29,4 +29,4 @@ from ._utils import (
     check_type_validity, get_object, get_object_name, import_from_string,
     instantiate, onetimemethod, raise_type_error
 )
-from ._constants import CONSTANTS
+from ._constants import CONSTANTS, update_constants

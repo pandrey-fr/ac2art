@@ -25,33 +25,41 @@ import os
 
 def __load_constants():
     """Load the constants stored in the package's 'config.json' file."""
-    path = os.path.join(os.path.dirname(__file__), '..', '..', 'config.json')
+    path = os.path.abspath(os.path.join(__file__, '../../../config.json'))
     if not os.path.isfile(path):
         raise FileNotFoundError(
-            "The 'config.json' file is missing in folder '%s'."
-            % os.path.dirname(path)
+            "Missing configuration file '%s'" % path
         )
     with open(path) as file:
         config = json.load(file)
-    if 'symbols_file' not in config:
-        __add_symbols_file(config, path)
     return config
 
 
-def __add_symbols_file(config, path):
+CONSTANTS = __load_constants()
+
+
+def update_constants(**kwargs):
+    """Add or update an entry from the config.json file.
+
+    Note : this might require you to be running Python with root rights.
+    """
+    for key, arg in kwargs.items():
+        CONSTANTS[key] = arg
+    path = os.path.abspath(os.path.join(__file__, '../../../config.json'))
+    with open(path, 'w') as file:
+        json.dump(CONSTANTS, file, indent=2, sort_keys=True)
+
+
+def __add_default_symbols_file():
     """Attempt to fill missing symbols_file enty in config.json."""
-    symbols_file = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), '..', '..', 'phone_symbols.csv'
-    ))
-    if not os.path.isfile(symbols_file):
+    path = os.path.abspath(os.path.join(__file__, '../../../phone_symbols.csv'))
+    if not os.path.isfile(path):
         raise FileNotFoundError(
             'Missing symbols_file entry in config.json.\n'
-            'Attempt to use default location (below) failed:\n'
-            + symbols_file
+            'Attempt to use default location (below) failed:\n' + path
         )
-    config['symbols_file'] = symbols_file
-    with open(path, 'w') as file:
-        json.dump(config, file, indent=2, sort_keys=True)
+    update_constants(symbols_file=path)
 
 
-CONSTANTS = __load_constants()
+if 'symbols_file' not in CONSTANTS:
+    __add_default_symbols_file()
