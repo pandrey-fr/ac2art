@@ -39,8 +39,8 @@ submodules.
 from . import utils
 from . import external
 from . import internal
-from . import corpora
 from . import networks
+from . import corpora
 from ._invert import run_inversion
 
 

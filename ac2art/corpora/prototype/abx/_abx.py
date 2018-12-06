@@ -27,6 +27,7 @@ import pandas as pd
 import numpy as np
 
 from ac2art.external.abxpy import abxpy_pipeline, abxpy_task
+from ac2art.networks import NeuralNetwork
 from ac2art.utils import (
     check_positive_int, check_type_validity, import_from_string, CONSTANTS
 )
@@ -58,6 +59,7 @@ def build_h5features_extractor(corpus):
         if audio_features is None and ema_features is None:
             raise RuntimeError('No features were set to be included.')
         if inverter is not None:
+            check_type_validity(inverter, (NeuralNetwork, None), 'inverter')
             if audio_features is None:
                 raise RuntimeError(
                     'No acoustic features specified to feed the inverter.'
