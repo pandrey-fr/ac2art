@@ -17,9 +17,8 @@
 # You should have received a copy of the GNU General Public License
 # along with ac2art.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Some code from this specific file is copied from yaptools,
-# a Python package from the same authors, distributed under
-# a similar license.
+# Some code from this specific file is copied or adapted from yaptools,
+# a Python package from the same author, distributed under the MIT license.
 
 """Set of broadly used and generic utilitarian classes.
 
