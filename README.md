@@ -1,4 +1,4 @@
-## ac2art: acoustic-to-articulatory inversion using neural networks
+# ac2art: acoustic-to-articulatory inversion using neural networks
 
 `ac2art` is a Python package for the supervised learning of the
 acoustic-to-articulatory inversion task using neural networks. It integrates a
@@ -7,7 +7,7 @@ is ready to be expanded to additional ones, as well as a neural networks API
 to build, train and save models of various and modular architectures, that
 relies in the background on the low-level API of `Tensorflow`.
 
-### Documentation
+## Documentation
 
 Beside the systematic documentation of all implemented functions in the form
 of docstrings, basic knowledge of how `ac2art` should be used and is structured
@@ -16,9 +16,9 @@ counterpart) and three markdown files covering respectively the `ac2art.corpora`
 module, the `ac2art.networks` one and the `ac2art.networks.NeuralNetwork` API.
 Those files are to be found in the `docs` folder of this repository.
 
-### Installation
+## Installation
 
-#### 1. Software requisites
+### 1. Software requisites
 
 **Python**
 
@@ -47,7 +47,7 @@ will be automately installed as part of the installation procedure :
 You may want to manually compile and install the latter depending on your
 system. Note that as of now, `ac2art` does not take advantage of GPUs.
 
-#### 2. Data _corpora_
+### 2. Data _corpora_
 
 To this day, `ac2art` supports the following data _corpora_ :
 [MNGU0](http://www.mngu0.org/),
@@ -69,7 +69,7 @@ In the meanwhile, one may use an `ac2art` built-in feature to compute MFCC,
 resulting in slightly different coefficients and not including the pitch
 features which Kaldi adds.
 
-#### 3. Configuration file
+### 3. Configuration file
 
 `ac2art` depends on a `config.json` file that should be created and set up
 before running its installation, which will be copied somewhere on your system
@@ -86,7 +86,7 @@ folders where to store the processed versions of those datasets (including
 acoustic and articulatory features in both raw and normalized versions, as
 well as produced ABXpy h5 features files and output scores).
 
-#### 4. Install the package
+### 4. Install the package
 
 To install `ac2art` on your machine:
 1. Download a copy of the Git repository:
@@ -95,7 +95,7 @@ To install `ac2art` on your machine:
 3. In the command line, `cd` to the folder, then run `python3 setup.py install`
 (either with root rights, or adding the `--user` option for local installation).
 
-### License
+## License
 
 **Copyright 2018 Paul Andrey**
 
@@ -111,7 +111,7 @@ PARTICULAR PURPOSE. See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program. If not, see http://www.gnu.org/licenses/.
 
-### Contact
+## Contact
 
 If you run into any issue regarding `ac2art`, you may open an issue on this
 Github repository, or contact [the author](https://github.com/pandrey-fr).
